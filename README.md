@@ -1,42 +1,12 @@
-# sv
+# Ocean website
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+The Ocean language website and documentation, built with SvelteKit and Svelte 5. The original site's content, dark palette, and documentation URLs are preserved.
 
-## Creating a project
+- `npm run dev` starts the development server.
+- `npm run check` checks Cloudflare types and Svelte/TypeScript.
+- `npm run build` prerenders the pages and builds for Cloudflare Workers.
+- `npm run preview` builds and previews through Wrangler.
 
-If you're seeing this, you've probably already done this step. Congrats!
+Pages live in `src/routes`; the shared documentation layout is in `src/routes/docs/+layout.svelte`. Sidebar links and previous/next order are defined in `src/lib/navigation.ts`, with reusable components in `src/lib/components`. Global styles are in `src/routes/layout.css`.
 
-```sh
-# create a new project
-npx sv create my-app
-```
-
-To recreate this project with the same configuration:
-
-```sh
-# recreate this project
-npx sv@0.17.0 create --template minimal --types ts --add tailwindcss="plugins:none" sveltekit-adapter="adapter:cloudflare+cfTarget:workers" --install npm oceanlang-website
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```sh
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+To add a documentation page, create its `+page.svelte` and add its link to the navigation data. Pages marked under construction preserve the original site's unfinished content. Navigation and page content render on the server; the standard library disclosure also works without JavaScript.

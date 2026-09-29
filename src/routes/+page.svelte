@@ -1,2 +1,5 @@
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
+<svelte:head><title>The Ocean Programming Language</title></svelte:head>
+
+<main class="body home">
+<p>The documentation for the Ocean programming language can be found <a href="/docs/">here</a>.</p>
+</main>

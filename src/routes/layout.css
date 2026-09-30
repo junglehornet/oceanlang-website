@@ -65,8 +65,11 @@ code {
 }
 
 code.block {
+  display: block;
+  box-sizing: border-box;
   width: 100%;
-  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .navbar-nest {

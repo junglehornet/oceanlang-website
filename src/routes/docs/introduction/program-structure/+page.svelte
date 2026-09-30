@@ -31,12 +31,10 @@
 	Next, we need to declare the <code>main()</code>
 	function:
 </p>
-<pre>
-<code>package main;
+<pre><code class="block">package main;
 
 func main() &#123;&#125;
-</code>
-				</pre>
+</code></pre>
 <h3>Imports</h3>
 <p>
 	Now, if we place any code inside the <code>main()</code>
@@ -82,7 +80,7 @@ func main() &#123;&#125;
 <h3>Top-Level Declarations</h3>
 <p>
 	Now, let's say you wanted to declare another function, <code>hello()</code>, that printed a message to the user. How would you do this?
-	In Ocean, all functions in the same package are in the same global namespace, regardless of order. That means that we could declare our
+	In Ocean, all top-level declarations in the same package are in the same global namespace, regardless of order. That means that we could declare our
 	<code>hello()</code>
 	function below the <code>main()</code>
 	function, or even in another file in the <code>main</code>
@@ -90,8 +88,7 @@ func main() &#123;&#125;
 	could still directly call it without having to import anything or use the <code>package.function()</code>
 	notation. For example:
 </p>
-<pre>
-<code>package main;
+<pre><code class="block">package main;
 
 import "io";
 
@@ -103,5 +100,46 @@ func main() &#123;
 func hello(string name) &#123; // this declares a function called hello, with a string parameter called name. string is a built-in type
     io.Println("Hello, " + name + "!");
 &#125;
-</code>
-				</pre>
+</code></pre>
+<p>
+	This also applies to top-level declarations in different files in the same package. For example:
+</p>
+<pre><code class="block">// project file structure:
+// myProject
+//  ├-main.oc
+//  └-hello.oc
+
+// file main.oc:
+package main;
+
+func main() &#123;
+	hello("bob");
+	hello("jim");
+&#125;
+
+// file hello.oc:
+package main;
+
+import "io";
+
+func hello(string name) &#123;
+	io.Println("Hello, " + name + "!");
+&#125;
+</code></pre>
+<p>
+	<code>main()</code> can use <code>hello()</code> because they are in the same package.
+	This also goes for top-level variable declarations, such as:
+</p>
+<pre><code class="block">package main;
+
+import "io";
+
+string s = "hello, world!";
+
+func main() &#123;
+	io.Println(s);
+&#125;
+</code></pre>
+<p>
+	<code>s</code> is accessible from any code within the <code>main</code> package.
+</p>

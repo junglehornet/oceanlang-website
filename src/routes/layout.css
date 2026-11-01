@@ -49,3 +49,27 @@
 @media(min-width:1500px){.hero{min-height:700px;padding-top:100px}}
 @media(max-width:1100px){.hero h1{font-size:56px}.hero{gap:5%}.hero-description{font-size:15px}}
 @media(max-width:760px){.hero{padding:50px 6% 55px;gap:35px;min-height:auto}.hero h1{font-size:clamp(43px,10.5vw,58px);letter-spacing:-1.8px}.hero-description{font-size:15px}.hero-code{margin:0;width:100%}.section-heading h2,.example-intro h2{font-size:29px}.feature-grid h3{font-size:17px}.feature-grid>a{padding:26px}.journey-main{padding:27px}.journey-links>a:first-child{padding-top:0}.development-note{grid-template-columns:1fr;gap:14px;margin-top:35px}.doc-article section>p,.example-explanation>p{font-size:15px;line-height:1.85}.docs-index h1{font-size:32px}.reference-table th,.reference-table td{padding:10px 12px}.reference-table td:first-child{min-width:110px}.reference-table table{font-size:12px}}
+
+.footer-credit {
+ display: flex;
+ align-items: baseline;
+ gap: 24px;
+}
+.footer-credit p {
+ color: var(--muted);
+ font-size: 11px;
+ line-height: inherit;
+}
+@media (max-width: 760px) {
+ .site-footer > div {
+  row-gap: 16px;
+ }
+ .footer-credit {
+  flex: 0 0 100%;
+  justify-content: space-between;
+  gap: 12px;
+ }
+ .footer-credit p {
+  font-size: 10px;
+ }
+}

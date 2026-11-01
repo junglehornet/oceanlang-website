@@ -4,15 +4,15 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "vite dev --host",
-    "build": "wrangler types && vite build",
-    "preview": "npm run build && wrangler dev",
-    "prepare": "svelte-kit sync || echo ''",
-    "check": "wrangler types worker-configuration.d.ts --check && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "gen": "wrangler types worker-configuration.d.ts",
-    "deploy": "npm run build && wrangler deploy",
-    "cf-typegen": "wrangler types worker-configuration.d.ts"
+    "dev": "npx vite dev --host",
+    "build": "npx wrangler types && npx vite build",
+    "preview": "npx npm run build && npx wrangler dev",
+    "prepare": "npx svelte-kit sync || echo ''",
+    "check": "npx wrangler types worker-configuration.d.ts --check && npx svelte-kit sync && npx svelte-check --tsconfig ./tsconfig.json",
+    "check:watch": "npx svelte-kit sync && npx svelte-check --tsconfig ./tsconfig.json --watch",
+    "gen": "npx wrangler types worker-configuration.d.ts",
+    "deploy": "npx npm run build && npx wrangler deploy",
+    "cf-typegen": "npx wrangler types worker-configuration.d.ts"
   },
   "devDependencies": {
     "@sveltejs/adapter-cloudflare": "^7.2.9",
@@ -24,7 +24,7 @@
     "svelte-check": "^4.6.0",
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16",
+    "vite": "^8.3.5",
     "wrangler": "^4.144.0"
   },
   "allowScripts": {

@@ -62,14 +62,17 @@
 }
 @media (max-width: 760px) {
  .site-footer > div {
-  row-gap: 16px;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: clamp(8px, 2.2vw, 10px);
+  white-space: nowrap;
  }
  .footer-credit {
-  flex: 0 0 100%;
-  justify-content: space-between;
-  gap: 12px;
+  flex: 0 0 auto;
+  gap: 0;
  }
  .footer-credit p {
-  font-size: 10px;
+  font-size: inherit;
  }
 }

@@ -37,7 +37,7 @@
 <header class="site-header"><div class="header-inner"><a class="brand" href="/" aria-label="Ocean home"><Logo/><span>ocean<span class="brand-dot">.</span></span></a><span class="version">0.1 <span> / in development</span></span><nav class:mobile-open={menuOpen} aria-label="Main navigation"><a class:active={page.url.pathname.startsWith('/docs')} href="/docs/" onclick={()=>menuOpen=false}>Documentation</a><a href="/#language" onclick={()=>menuOpen=false}>The language</a><a href="/docs/tooling/cli/" onclick={()=>menuOpen=false}>Tooling <span class="arrow">↗</span></a></nav><div class="header-actions"><button class="search-trigger" onclick={()=>searchOpen=true} aria-label="Search documentation"><span>⌕</span><span class="search-label">Search docs</span><kbd>⌘ K</kbd></button><button class="theme-toggle" onclick={toggleTheme} aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'} title={dark ? 'Switch to light theme' : 'Switch to dark theme'}>{dark ? '☼' : '☾'}</button><button class="mobile-toggle" onclick={()=>menuOpen=!menuOpen} aria-label="Toggle menu" aria-expanded={menuOpen}>☰</button></div></div></header>
 {@render children()}
 <footer class="site-footer">
- <a class="brand" href="/"><Logo small/><span>ocean.</span></a>
+ <a class="brand" href="/"><Logo small/><span>ocean<span class="brand-dot">.</span></span></a>
  <p>The Ocean programming language.</p>
  <div>
   <div class="footer-credit"><p>Maintained by Connor Egan</p></div>

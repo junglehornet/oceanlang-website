@@ -43,7 +43,7 @@
     <a class="button primary" href="/docs/getting-started/">Get started <span>→</span></a>
     <a class="button secondary" href="/docs/">Documentation</a>
    </div>
-   <a class="hero-source" href="https://codeberg.org/junglehornet/ocean-c">View the compiler source ↗</a>
+   <a class="hero-source" href="https://codeberg.org/junglehornet/ocean-c" target="_blank" rel="noopener noreferrer">View the compiler source ↗</a>
   </div>
   <div class="hero-code">
    <div class="editor-top"><span>hello.oc</span><span class="editor-language">Ocean</span></div>
@@ -71,7 +71,7 @@
    </a>
    <a href="/docs/language/memory/">
     <h3>Values and memory</h3>
-    <p>Arrays and strings copy by value and clean up at scope exit. Pointers provide shared access; heap allocations are freed explicitly.</p>
+    <p>Dynamic arrays and strings copy by value and clean up at scope exit. Pointers provide shared access; heap allocations are freed explicitly.</p>
     <span class="text-link">Memory model →</span>
    </a>
    <a href="/docs/tooling/editor/">
@@ -116,6 +116,6 @@
     <a href="/docs/library/io/"><div><h3>Standard library</h3><p>Reference documentation for io, os, and reflect.</p></div><span>→</span></a>
    </div>
   </div>
-  <div class="development-note"><h3>Development status</h3><p>Ocean is under active development. The documentation describes the current compiler, including implementation limits. The compiler and standard library are available on <a href="https://codeberg.org/junglehornet/ocean-c">Codeberg ↗</a>.</p></div>
+  <div class="development-note"><h3>Development status</h3><p>Ocean is under active development. The documentation describes the current compiler, including implementation limits. The compiler and standard library are available on <a href="https://codeberg.org/junglehornet/ocean-c" target="_blank" rel="noopener noreferrer">Codeberg ↗</a>.</p></div>
  </section>
 </main>

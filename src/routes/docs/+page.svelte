@@ -1,24 +1,3 @@
-<svelte:head><title>Ocean Docs</title></svelte:head>
-
-<h1>Ocean Docs</h1>
-<p>Welcome! These are the docs and tutorial for the Ocean programming language.
-	This documentation is for Ocean <strong>v0.1</strong></p>
-
-<h3>Table of Contents</h3>
-<p>This documentation is organized into 3 sections:</p>
-<ul>
-	<li><a href="/docs/introduction/">Introduction:</a><br>
-	An introduction to the basic concepts of Ocean, including everything
-	you need to make a basic hello-world program, as well as a basic
-	overview of types, control flow, variables, functions, etc.</li>
-	<li><a href="/docs/advanced/">Advanced Concepts:</a><br>
-	An in-depth exploration of some of Ocean's more complicated concepts,
-	such as packages and the import system, a more in-depth explanation
-	of the type system including structs and interfaces, and an overview
-	on memory management in Ocean.</li>
-	<li><a href="/docs/stdlib/">Standard Library:</a><br>
-	Documentation for all of the packages in Ocean's standard libary.</li>
-</ul>
-<h2>Contributing</h2>
-<p>The docs are not currently accepting contibutions however the docs will be open-sourced in the future and will
-	allow community contributions.</p>
+<script lang="ts">import { docs, groups } from '$lib/docs';</script>
+<svelte:head><title>Documentation — Ocean</title><meta name="description" content="Get started with Ocean. Explore the language guide, compiler tooling, and current standard library."/></svelte:head>
+<main id="main" class="docs-index"><p class="eyebrow">OCEAN / DOCUMENTATION</p><h1>Ocean documentation</h1><p class="doc-lead">Learn how to install Ocean, write and organize programs, and use the compiler and standard library. The language guide assumes you know programming basics, but does not require experience with a particular language.</p><a class="docs-start" href="/docs/getting-started/"><span class="eyebrow">NEW TO OCEAN?</span><h2>Install Ocean and run a program. <span>↗</span></h2><p>Start with the source checkout and compiler setup, then write and run a complete example.</p></a>{#each groups.slice(1) as group}<section class="docs-index-section"><h2>{group}</h2><div class="doc-card-grid">{#each docs.filter(d=>d.group===group) as doc}<a href={'/docs/'+doc.slug+'/'}><h3>{doc.title}<span>↗</span></h3><p>{doc.description}</p></a>{/each}</div></section>{/each}<p class="source-note">Based on the current Ocean compiler README and the io, os, and reflect package sources. Ocean is in development; parser support may be broader than native backend support.</p></main>

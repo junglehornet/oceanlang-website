@@ -63,17 +63,17 @@
  <section id="language" class="section language-section">
   <div class="section-heading">
    <div><h2>Language features</h2></div>
-   <p>Ocean combines typed functions and structs with explicit control over shared data and heap allocations.</p>
+   <p>Ocean combines low-level memory control with convenient, easy-to-use builtin types that are memory safe and feel intuitive.</p>
   </div>
   <div class="feature-grid">
    <a href="/docs/language/functions/">
     <h3>Functions and types</h3>
-    <p>Infer local variable types, return multiple results, and use structs and generic functions to organize your code.</p>
+    <p>Infer local variable types, return multiple results, and use generic structs, functions, and methods to organize your code.</p>
     <span class="text-link">Language guide →</span>
    </a>
    <a href="/docs/language/memory/">
     <h3>Values and memory</h3>
-    <p>Dynamic arrays and strings copy by value and clean up at scope exit. Pointers provide shared access; heap allocations are freed explicitly.</p>
+    <p>Dynamic arrays and strings copy by value and clean up at scope exit, preventing memory bugs. Pointers provide direct, low-level access to heap memory.</p>
     <span class="text-link">Memory model →</span>
    </a>
    <a href="/docs/tooling/editor/">

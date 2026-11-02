@@ -31,8 +31,9 @@
 </svelte:head>
 
 <main id="main">
- <section class="hero">
+ <div class="hero-background">
   <div class="hero-art" aria-hidden="true"></div>
+ <section class="hero">
   <div class="hero-content">
    <a class="eyebrow release-link" href="/docs/getting-started/">
     <span class="status-dot"></span> Ocean 0.1 · In development
@@ -57,6 +58,7 @@
    </div>
   </div>
  </section>
+ </div>
 
  <section id="language" class="section language-section">
   <div class="section-heading">
@@ -82,6 +84,7 @@
   </div>
  </section>
 
+ <div class="examples-background">
  <section class="example-section section">
   <div class="example-intro">
    <h2>A few examples</h2>
@@ -101,6 +104,8 @@
    <p>{examples[selected].explanation}</p>
   </div>
  </section>
+
+ </div>
 
  <section class="section journey">
   <div class="section-heading"><div><h2>Documentation</h2></div></div>

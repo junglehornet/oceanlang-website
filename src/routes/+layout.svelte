@@ -43,7 +43,7 @@
   <div class="footer-credit"><p>Maintained by Connor Egan</p></div>
   <a href="/docs/getting-started/">Get started</a>
   <a href="/docs/">Documentation</a>
-  <a href="/source/">Source code</a>
+  <a href="/docs/source/">Source code</a>
  </div>
 </footer>
 {#if searchOpen}<div class="search-backdrop" role="presentation" onclick={(e)=>{if(e.target===e.currentTarget)searchOpen=false;}}><div bind:this={searchPanel} onkeydown={trapFocus} class="search-dialog" role="dialog" aria-modal="true" aria-label="Search documentation" tabindex="-1"><div class="search-input"><span>⌕</span><input aria-label="Search documentation" placeholder="Search the Ocean docs…" bind:value={query}/><button onclick={()=>searchOpen=false} aria-label="Close search">Esc</button></div><div class="search-results">{#if results.length===0}<p>No results. Try “arrays”, “install”, or “functions”.</p>{/if}{#each results as result}<a href={'/docs/'+result.slug+'/'} onclick={()=>searchOpen=false}><small>{result.group}</small><strong>{result.title}<span>↗</span></strong><p>{result.description}</p></a>{/each}</div><div class="search-bottom">Search the language guide, tooling, and standard library</div></div></div>{/if}

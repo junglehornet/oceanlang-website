@@ -5,6 +5,7 @@
  import type { Doc } from '$lib/docs';
  let { data }: {data: {doc:Doc; previous?:Doc; next?:Doc}} = $props();
  function codeLabel(code: string) {
+  if (code.startsWith('// In the docs array')) return 'TypeScript';
   if (/^(cmake|ctest|git clone|ocean |# Shell)/.test(code)) return 'Terminal';
   if (code.startsWith('module ')) return 'ocean.mod';
   return 'Ocean';
@@ -40,6 +41,7 @@
     {/if}
     {#if section.code}<Code code={section.code} label={codeLabel(section.code)}/>{/if}
     {#if section.after}<div class="example-explanation"><Prose text={section.after}/></div>{/if}
+    {#if section.links}<div class="section-links">{#each section.links as link}<p><a href={link.href} target={/^https?:\/\//i.test(link.href) ? '_blank' : undefined} rel={/^https?:\/\//i.test(link.href) ? 'noopener noreferrer' : undefined}>{link.label}{#if /^https?:\/\//i.test(link.href)}<span class="sr-only"> (opens in a new tab)</span>{/if}</a></p>{/each}</div>{/if}
     {#if section.note}<aside class="callout"><span>↳</span><div><Prose text={section.note}/></div></aside>{/if}
    </section>
   {/each}
@@ -59,3 +61,9 @@
   <div class="toc-bottom"><a href="/docs/">Documentation index →</a></div>
  </aside>
 </div>
+
+<style>
+ .section-links { margin-top: 18px; font-size: 14px; }
+ .section-links p + p { margin-top: 10px; }
+ .section-links a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+</style>

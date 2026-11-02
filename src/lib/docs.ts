@@ -1,4 +1,4 @@
-export type Section = { id: string; title: string; text: string; code: string; note: string; after?: string; table?: { headers: string[]; rows: string[][] } };
+export type Section = { id: string; title: string; text: string; code: string; note: string; links?: { label: string; href: string }[]; after?: string; table?: { headers: string[]; rows: string[][] } };
 export type Doc = { slug: string; group: string; title: string; description: string; sections: Section[] };
 export const docs: Doc[] = [
   {
@@ -796,6 +796,305 @@ export const docs: Doc[] = [
         "note": ""
       }
     ]
-  }
+  },
+{
+  "slug": "source",
+  "group": "Contribute",
+  "title": "Source code",
+  "description": "Find the repositories for the Ocean compiler, standard library, and documentation.",
+  "sections": [
+    {
+      "id": "compiler",
+      "title": "Ocean compiler",
+      "text": "The compiler, command-line tools, and language server live in `junglehornet/ocean-c` on Codeberg. The repository also contains compiler tests and implementation notes.",
+      "code": "",
+      "note": "",
+      "links": [
+        {
+          "label": "Browse the compiler source ↗",
+          "href": "https://codeberg.org/junglehornet/ocean-c"
+        },
+        {
+          "label": "Building and compiler architecture →",
+          "href": "/docs/contribute/compiler/"
+        }
+      ]
+    },
+    {
+      "id": "library",
+      "title": "Standard library",
+      "text": "The `junglehornet/ocean-src` repository on Codeberg contains the Ocean sources for `io`, `os`, and `reflect`. It is maintained separately from the compiler.",
+      "code": "",
+      "note": "",
+      "links": [
+        {
+          "label": "Browse the standard library ↗",
+          "href": "https://codeberg.org/junglehornet/ocean-src"
+        },
+        {
+          "label": "Standard library repository guide →",
+          "href": "/docs/contribute/stdlib/"
+        }
+      ]
+    },
+    {
+      "id": "website",
+      "title": "Website and documentation",
+      "text": "The SvelteKit website, documentation content, shared components, and styles live in `junglehornet/oceanlang-website` on GitHub.",
+      "code": "",
+      "note": "",
+      "links": [
+        {
+          "label": "Browse the website source ↗",
+          "href": "https://github.com/junglehornet/oceanlang-website"
+        },
+        {
+          "label": "Contribute to the docs website →",
+          "href": "/docs/contribute/website/"
+        }
+      ]
+    }
+  ]
+},
+{
+  "slug": "contribute/compiler",
+  "group": "Contribute",
+  "title": "Building & compiler architecture",
+  "description": "Build a development compiler, find each compilation stage, and choose the right tests for a change.",
+  "sections": [
+    {
+      "id": "checkout",
+      "title": "Check out the sources",
+      "text": "Install Git, CMake 4.2 or newer, a C23-capable C compiler, Clang, and libffi development headers and libraries. Python 3 is required when tests are enabled, as they are by default. CMake selects Clang unless you choose another C compiler.\n\nClone the two repositories into sibling directories. The standard library is Ocean source loaded by the compiler; it does not have a separate native build.",
+      "code": "git clone https://codeberg.org/junglehornet/ocean-c.git\ngit clone https://codeberg.org/junglehornet/ocean-src.git\ncd ocean-c",
+      "note": ""
+    },
+    {
+      "id": "build",
+      "title": "Configure and build",
+      "text": "Run these commands from `ocean-c`. An out-of-source Debug build keeps generated files separate and provides debugging information. `OCEAN_STANDARD_LIBRARY_SOURCE` selects the source tree copied during installation; `OCEAN_SRC` selects the library used while running the compiler.\n\nThe C compiler builds Ocean itself. Ocean emits textual LLVM IR and invokes Clang to produce and link native code. LLVM development libraries are not required; libffi is needed for runtime C calls.",
+      "code": "cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DOCEAN_STANDARD_LIBRARY_SOURCE=\"../ocean-src\"\ncmake --build build --parallel\nctest --test-dir build --output-on-failure",
+      "note": "",
+      "after": "The build produces `build/ocean-c` and an `ocean` copy beside it. Rebuild after editing C sources. To change C compilers, configure a fresh build directory with `-DCMAKE_C_COMPILER=...` rather than reusing an incompatible CMake cache."
+    },
+    {
+      "id": "try",
+      "title": "Run against your library checkout",
+      "text": "An uninstalled executable in `build/` will not automatically find the sibling `ocean-src` checkout. From the compiler repository, set `OCEAN_SRC` to that checkout and use an absolute path to your example package. A check validates the package graph, backend output, and native link without executing the program.",
+      "code": "# Shell\nOCEAN_SRC=\"$PWD/../ocean-src\" ./build/ocean check /path/to/example\nOCEAN_SRC=\"$PWD/../ocean-src\" ./build/ocean run /path/to/example",
+      "note": "",
+      "after": "To test installation, configure with `-DCMAKE_INSTALL_PREFIX=\"$HOME/.local/ocean\"`, rebuild, and run `cmake --install build`. The prefix receives `bin/ocean` and `src/` containing library sources. Add its `bin/` directory to PATH. If testing cache behavior is not your goal, `OCEAN_BUILD_CACHE=off` can help isolate a compiler change."
+    },
+    {
+      "id": "pipeline",
+      "title": "Follow the compilation pipeline",
+      "text": "Compiler implementation files live at the repository root. Start at `main.c` for command dispatch and tool invocation. Package loading brings together a graph of source files and imports; scanning and parsing construct the syntax representation; semantic analysis resolves names and types; the backend lowers the program to LLVM IR. Clang handles native compilation and linking.",
+      "code": "",
+      "note": "",
+      "table": {
+        "headers": [
+          "Files",
+          "Responsibility"
+        ],
+        "rows": [
+          [
+            "`main.c`",
+            "CLI commands, build/check/run orchestration, and native tool execution."
+          ],
+          [
+            "`package.c`, `package.h`",
+            "Package and module loading, import resolution, and standard-library lookup."
+          ],
+          [
+            "`scanner.c`, `token.c`",
+            "Lexing source text and representing tokens."
+          ],
+          [
+            "`parser.c`, `ast.c` and their headers",
+            "Parsing declarations and expressions, syntax structures, and AST utilities."
+          ],
+          [
+            "`semantic.c`, `semantic.h`",
+            "Bindings, type resolution, and semantic diagnostics."
+          ],
+          [
+            "`backend.c`, `backend.h`",
+            "LLVM emission, runtime helpers, and value ownership/cleanup lowering."
+          ],
+          [
+            "`llvm_packages.c`",
+            "Splitting emitted LLVM into package units."
+          ],
+          [
+            "`build_cache.c`",
+            "Generated IR and native-object caching."
+          ],
+          [
+            "`lsp.c`, `lsp_semantic.inc`",
+            "LSP transport, document state, diagnostics, and semantic editor features."
+          ],
+          [
+            "`dynarray.c`, `c-hashmap/`, shared headers",
+            "Supporting collections, type representations, source paths, and diagnostics."
+          ]
+        ]
+      }
+    },
+    {
+      "id": "tests",
+      "title": "Choose tests for the change",
+      "text": "`CMakeLists.txt` defines the compiler sources and registers the CTest suites. `tests/` contains C unit tests and Python integration tests. Parser suites inspect syntax directly; backend tests compile Ocean fixtures, inspect output, and run native programs. Package, cache, reflection, and LSP tests cover their respective boundaries.\n\nRun a focused suite while iterating, then run the full suite before submitting. A parser accepting a construct does not prove semantic or native support. A language change may need scanner/parser coverage, semantic rejection cases, runtime behavior, editor checks, and updated docs.",
+      "code": "ctest --test-dir build -R parser --output-on-failure\nctest --test-dir build --output-on-failure",
+      "note": "",
+      "after": "Read `tests/README.md` for suite conventions and `tests/pending/README.md` plus `tests/pending/features.json` for tracked limitations. Pending cases can be skipped; a skip is not proof that a feature works. Include a focused regression for a bug and describe which tests you ran."
+    }
+  ]
+},
+{
+  "slug": "contribute/stdlib",
+  "group": "Contribute",
+  "title": "Standard library repository",
+  "description": "Understand the ocean-src layout, its compiler integration, and how to verify library changes.",
+  "sections": [
+    {
+      "id": "layout",
+      "title": "Repository layout",
+      "text": "`ocean-src` is the standard-library source root. Its package directories are imported by name: `import \"io\";` resolves the `io` directory under the configured library root. Source files begin with their package declaration. The current repository is small; it does not contain a general-purpose collection of packages borrowed from another language.",
+      "code": "",
+      "note": "",
+      "table": {
+        "headers": [
+          "Path",
+          "Contents"
+        ],
+        "rows": [
+          [
+            "`README.md`",
+            "Repository introduction."
+          ],
+          [
+            "`io/io.oc`",
+            "Output, string conversion, and placeholder formatting."
+          ],
+          [
+            "`os/args.oc`",
+            "Process argument storage, initialization hook, and public Args function."
+          ],
+          [
+            "`reflect/reflect.oc`",
+            "Field snapshot API backed by restricted compiler primitives."
+          ],
+          [
+            "`reflect/README.md`",
+            "Reflection semantics, ownership rules, and trusted-source restrictions."
+          ]
+        ]
+      }
+    },
+    {
+      "id": "relationships",
+      "title": "How packages connect to the compiler",
+      "text": "`io` implements printing and formatting in Ocean, including reflected struct formatting and native C interfaces. `os` stores the process arguments supplied through its internal `setArgs` hook; application code calls `os.Args()`. `reflect` exposes `Field`, `Fields`, and `IsStruct`.\n\nReflection primitives are available only to the actual `reflect` package under the configured standard-library root. A project-local package with the same name does not gain access. Changes to these hooks or to native interfaces may require matching changes and tests in `ocean-c`.",
+      "code": "",
+      "note": ""
+    },
+    {
+      "id": "development",
+      "title": "Work directly from the checkout",
+      "text": "Clone the library beside the compiler and point `OCEAN_SRC` at its absolute path. Run these commands from the directory containing both repositories, after building the compiler. Replace `/path/to/example` with a package that exercises your change.",
+      "code": "git clone https://codeberg.org/junglehornet/ocean-src.git\n# With a built sibling ocean-c checkout:\nOCEAN_SRC=\"$PWD/ocean-src\" ./ocean-c/build/ocean check /path/to/example\nOCEAN_SRC=\"$PWD/ocean-src\" ./ocean-c/build/ocean run /path/to/example",
+      "note": "",
+      "after": "There is no separate library compilation or npm/CMake build in this repository. Ocean compiles the required library packages with the importing program. For installation, preserve the package directories under the installed `src/` root."
+    },
+    {
+      "id": "changes",
+      "title": "Add or change a package",
+      "text": "Keep each package in its own directory and use a matching package declaration. Follow existing export conventions: public names start with an uppercase letter. Add source files to the package directory when splitting an implementation.\n\nExercise new behavior from a small importing program. For compiler-integrated behavior, add regression coverage to the compiler repository: `tests/io_backend_test.py`, `tests/os_args_test.py`, and `tests/reflect_test.py` cover the current packages. Run the relevant CTest suites and update the corresponding reference page in this website. Preserve copy and ownership behavior, especially for strings, arrays, boxed values, and reflected snapshots.",
+      "code": "",
+      "note": "",
+      "links": [
+        {
+          "label": "Standard library API documentation →",
+          "href": "/docs/library/io/"
+        }
+      ]
+    }
+  ]
+},
+{
+  "slug": "contribute/website",
+  "group": "Contribute",
+  "title": "Contribute to the docs website",
+  "description": "Clone the website, run it locally, and add documentation pages through the shared content model.",
+  "sections": [
+    {
+      "id": "setup",
+      "title": "Clone and start the website",
+      "text": "Install a current Node.js version compatible with the checked-in dependencies and npm. Clone the website repository and install the locked dependency versions. Generate Cloudflare runtime types before starting the development server.",
+      "code": "git clone https://github.com/junglehornet/oceanlang-website.git\ncd oceanlang-website\nnpm ci\nnpm run gen\nnpm run dev",
+      "note": "",
+      "after": "Open the local URL printed by Vite. The website uses SvelteKit, Svelte 5, TypeScript, and the Cloudflare adapter. Local content editing does not require deploying the site."
+    },
+    {
+      "id": "files",
+      "title": "Find the content and components",
+      "text": "Most documentation edits belong in `src/lib/docs.ts`. The catch-all docs route looks up a page by slug and renders its sections. The shared layout and index read the same content to build navigation.",
+      "code": "",
+      "note": "",
+      "table": {
+        "headers": [
+          "Path",
+          "Purpose"
+        ],
+        "rows": [
+          [
+            "`src/lib/docs.ts`",
+            "Pages, section content, sidebar groups, and reading order."
+          ],
+          [
+            "`src/routes/docs/[...slug]/+page.ts`",
+            "Page lookup, prerender entries, and previous/next pages."
+          ],
+          [
+            "`src/routes/docs/[...slug]/+page.svelte`",
+            "Shared article renderer and navigation buttons."
+          ],
+          [
+            "`src/routes/docs/+layout.svelte`, `+page.svelte`",
+            "Documentation sidebar and index."
+          ],
+          [
+            "`src/routes/+layout.svelte`",
+            "Site navigation, theme, and document search."
+          ],
+          [
+            "`src/lib/components/`",
+            "Code blocks, inline code, prose, and logo components."
+          ],
+          [
+            "`src/routes/layout.css`",
+            "Shared styles and responsive layout."
+          ]
+        ]
+      }
+    },
+    {
+      "id": "page",
+      "title": "Add a documentation page",
+      "text": "Add a `Doc` object to the `docs` array in `src/lib/docs.ts`. Choose a unique slug without leading or trailing slashes, select an existing group, and add a title, description, and sections. Array order controls the previous/next buttons. To introduce a group, also add its name to `groups`.\n\nEach section needs a unique `id` within the page, a title, text, code, and note. Use empty strings for an unused code example or note. Optional `after` text explains an example, `table` supplies headers and rows, and `links` supplies labeled URLs. Separate paragraphs with blank lines and wrap inline code in backticks. The renderer treats prose as text, so HTML and Markdown links are not interpreted.",
+      "code": "// In the docs array in src/lib/docs.ts:\n{\n  slug: \"contribute/example\",\n  group: \"Contribute\",\n  title: \"Example guide\",\n  description: \"Explain what readers will learn.\",\n  sections: [{\n    id: \"overview\",\n    title: \"Overview\",\n    text: \"Describe the workflow and use `inline code` for names.\",\n    code: \"\",\n    note: \"\",\n    links: [{ label: \"Source code\", href: \"/docs/source/\" }]\n  }]\n}",
+      "note": "",
+      "after": "A content entry automatically appears in the sidebar, documentation index, search, prerender entries, and reading sequence. It does not need a dedicated Svelte route. Keep examples grounded in the compiler and library sources and verify executable examples with Ocean."
+    },
+    {
+      "id": "validate",
+      "title": "Check and build",
+      "text": "Run the type checks and production build after editing. The build generates runtime types and prerenders the documentation. For a local production preview through Wrangler, run the preview command after these checks.",
+      "code": "# Shell\nnpm run check\nnpm run build\nnpm run preview",
+      "note": "",
+      "after": "Review the edited page at desktop and mobile widths, follow its previous/next links, check the sidebar and search, and try any changed code samples. In your contribution, describe the content or behavior changed and report the checks you ran. Don't use `npm run deploy` to deploy the site. Rather, when your pull request is merged into the main branch of the repository on github, the website will automatically deploy."
+    }
+  ]
+}
 ];
-export const groups = ["Start here", "Language guide", "Tooling", "Standard library"];
+export const groups = ["Start here", "Language guide", "Tooling", "Standard library", "Contribute"];

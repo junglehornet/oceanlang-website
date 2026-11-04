@@ -24,6 +24,8 @@ Add a documentation entry to `docs.ts` to include it in navigation, search, prer
 
 The theme follows the system preference initially; a visitor's explicit choice persists locally and is applied before rendering. Search opens with Ctrl/Cmd+K and closes with Escape.
 
+`/sitemap.xml` generates a sitemap from the home page, documentation index, and every entry in `docs.ts`. `/robots.txt` advertises the sitemap. Both endpoints use the request origin, so their absolute URLs follow the deployed domain without additional configuration.
+
 ## Documentation sources
 
 Content reflects the adjacent `ocean-c/README.md` and the actual `ocean-src/io`, `ocean-src/os`, and `ocean-src/reflect` implementations. Recheck these sources when compiler behavior changes. Do not infer executable support from parser acceptance. Full examples have been validated with the local compiler's `ocean check` command.

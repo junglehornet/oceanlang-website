@@ -13,7 +13,7 @@
 </script>
 
 <svelte:head>
- <title>{data.doc.title} — Ocean documentation</title>
+ <title>{data.doc.title} — Ocean Docs</title>
  <meta name="description" content={data.doc.description}/>
 </svelte:head>
 

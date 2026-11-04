@@ -27,7 +27,7 @@
 </script>
 
 <svelte:head>
- <title>Ocean programming language</title>
+ <title>Ocean Programming Language</title>
 </svelte:head>
 
 <main id="main">

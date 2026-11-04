@@ -246,6 +246,68 @@ export const docs: Doc[] = [
     ]
   },
   {
+    "slug": "language/packages-and-imports",
+    "group": "Language guide",
+    "title": "Packages & imports",
+    "description": "Organize files, import shared code, and understand visibility and method ownership.",
+    "sections": [
+      {
+        "id": "directories",
+        "title": "One directory, one package",
+        "text": "Every `.oc` file starts with a package declaration. All Ocean files in a directory must declare the same package. Functions, types, and global variables are shared across those files, including lowercase helpers. Subdirectories are separate packages. Passing a source file to the compiler selects its entire directory. Only a root package named `main` gets an executable entry point.",
+        "code": "package main;\n\nfunc main() int {\n    return answer();\n}\n\n// In helper.oc in the same directory:\n// package main;\n// func answer() int { return 42; }",
+        "note": ""
+      },
+      {
+        "id": "layout",
+        "title": "Create a module and a package",
+        "text": "Run `ocean mod init example.com/app` in your project directory. This creates `ocean.mod`. Save the library below as `greeting/greeting.oc`, and the importing program as `main.oc` in the project root. Run `ocean check .` to validate both packages or `ocean run .` to execute the program.",
+        "code": "// greeting/greeting.oc\npackage greeting;\n\nfunc Message() string {\n    return \"Hello from another package\";\n}\n\n// main.oc\npackage main;\n\nimport \"io\";\nimport \"example.com/app/greeting\";\n\nfunc main() {\n    io.Println(greeting.Message());\n}",
+        "note": "",
+        "links": [
+          {
+            "label": "Module dependencies and replacements",
+            "href": "/docs/tooling/packages/"
+          }
+        ]
+      },
+      {
+        "id": "imports",
+        "title": "Import paths and aliases",
+        "text": "The import path identifies the package directory; the default qualifier comes from its declared package name. Module-relative paths such as `\"greeting\"` are also accepted. Standard-library imports such as `\"io\"` resolve under the installed source directory, which `OCEAN_SRC` can override. External modules resolve through the module configuration and Git cache. An `as` alias changes the qualifier for the current file. Each file must declare the imports it uses.",
+        "code": "package main;\n\nimport \"example.com/app/greeting\" as hello;\nimport \"io\";\n\nfunc main() {\n    io.Println(hello.Message());\n}",
+        "note": ""
+      },
+      {
+        "id": "visibility",
+        "title": "Exports, dot imports, and blank imports",
+        "text": "Names beginning with an uppercase letter are exported. Lowercase declarations remain private to their package. This applies to functions, types, globals, receiver methods, interfaces, aliases, and enum types and variants. Extern declarations are file-scoped and are not exported through imports. A dot import introduces exported names without a qualifier; collisions can make a reference ambiguous. A blank import loads and initializes the package without binding its names.",
+        "code": "import . \"example.com/app/greeting\";\nimport _ \"example.com/app/setup\";\n\n// Inside a function, the dot import allows:\nmessage := Message();",
+        "note": "Each example import requires a package at that path. The setup package is illustrative."
+      },
+      {
+        "id": "methods",
+        "title": "Methods belong to the defining package",
+        "text": "A receiver method must be declared in the package that defines its receiver type. It may be in a different file within that package. You cannot add methods to imported types, including types brought into scope by dot imports or local aliases of imported types. A type alias preserves the original type identity; a distinct local type definition creates a new type on which local methods can be declared.",
+        "code": "// In the greeting package:\nstruct Greeting { text string; }\n\nfunc (message Greeting) Text() string {\n    return message.text;\n}",
+        "note": "Package-qualified receiver syntax such as `func (x greeting.Message) Extra()` is also rejected by the parser."
+      },
+      {
+        "id": "initialization",
+        "title": "Initialization and package errors",
+        "text": "Imported packages initialize before their importers. Within a package, files are sorted by filename and globals initialize in declaration order, after default initialization. Avoid relying on forward references to obtain an already initialized value. Import cycles, conflicting package declarations, ambiguous imported names, and access to private declarations are errors.",
+        "code": "",
+        "note": "",
+        "links": [
+          {
+            "label": "Packages, modules, and dependencies",
+            "href": "/docs/tooling/packages/"
+          }
+        ]
+      }
+    ]
+  },
+  {
     "slug": "language/strings",
     "group": "Language guide",
     "title": "Strings",
@@ -378,7 +440,7 @@ export const docs: Doc[] = [
       {
         "id": "2",
         "title": "Methods",
-        "text": "Place a receiver before the method name. A value receiver works on a copy; a pointer receiver can update the original. When an addressable value calls a pointer method, Ocean borrows its address automatically.\n\nThe receiver gives a method access to the value on which it was called. A value receiver is suitable for reading fields or computing a result. A pointer receiver is appropriate when the method needs to modify the original stored fields. The distinction appears directly in the receiver’s type.\n\nAutomatic borrowing makes an addressable variable convenient to call without hiding the declaration’s behavior: `counter.Increment()` still invokes a pointer receiver. A value receiver copies its struct even when the call is made through a pointer.",
+        "text": "Declare methods in the package that defines the receiver type; imported types and aliases of them cannot receive new methods. Place a receiver before the method name. A value receiver works on a copy; a pointer receiver can update the original. When an addressable value calls a pointer method, Ocean borrows its address automatically.\n\nThe receiver gives a method access to the value on which it was called. A value receiver is suitable for reading fields or computing a result. A pointer receiver is appropriate when the method needs to modify the original stored fields. The distinction appears directly in the receiver’s type.\n\nAutomatic borrowing makes an addressable variable convenient to call without hiding the declaration’s behavior: `counter.Increment()` still invokes a pointer receiver. A value receiver copies its struct even when the call is made through a pointer.",
         "code": "struct Counter { value int; }\n\nfunc (counter *Counter) Increment() {\n    counter.value++;\n}\n\nfunc (counter Counter) Value() int {\n    return counter.value;\n}",
         "note": "",
         "after": "For `counter := Counter{0};`, calling `counter.Increment();` updates the field to one. Calling `counter.Value()` returns that integer. Methods are associated with their declared types; they are not separate fields storing callable function values."
@@ -398,6 +460,49 @@ export const docs: Doc[] = [
         "code": "struct Sample(tag int) {\n    value float;\n}\n\n// Inside a function:\nsample := Sample{7, 3.5};\nsample.value = 4.0;\n// sample.tag is immutable.",
         "note": "",
         "after": "The literal initializes `tag` to `7` and `value` to `3.5`. Updating `sample.value` is allowed because it is an ordinary mutable field. Assigning another number to `sample.tag` is rejected by the frontend."
+      }
+    ]
+  },
+  {
+    "slug": "language/enums",
+    "group": "Language guide",
+    "title": "Enums & matching",
+    "description": "Construct tagged enum values, extract immutable payloads, and match variants.",
+    "sections": [
+      {
+        "id": "0",
+        "title": "Declare and construct variants",
+        "text": "An enum is a distinct type whose variants may carry no data, an ordered tuple, or named record fields. Variant names belong to the enum. Tuple construction uses parentheses; record construction uses braces with positional values or named fields. Payload fields are immutable. Uppercase enum and variant names are exported to other packages.",
+        "code": "enum GuiEvent {\n    GuiLoad,\n    KeyPress(i8),\n    Click{x, y i8},\n}\n\nfunc main() {\n    load := GuiEvent.GuiLoad;\n    key := GuiEvent.KeyPress(65);\n    click := GuiEvent.Click{x: 2, y: 3};\n}",
+        "note": "Enums have nominal identity: a variant of another enum cannot be assigned even when its name and payload shape match."
+      },
+      {
+        "id": "1",
+        "title": "Test and extract a payload",
+        "text": "Compare a value with a qualified variant name to test its tag. Extract data with value.(Enum.Variant). A tuple yields its positional values; use multiple assignment for multiple elements and _ to discard positions. A record yields a record with immutable fields. An extraction traps if the value holds a different variant.",
+        "code": "func keyCode(event GuiEvent) i8 {\n    if (event == GuiEvent.KeyPress) {\n        key := event.(GuiEvent.KeyPress);\n        return key;\n    }\n    return 0;\n}",
+        "note": "Payload variants require construction before they can be stored or passed as values."
+      },
+      {
+        "id": "2",
+        "title": "Match variants",
+        "text": "match evaluates its enum subject once and executes the matching arm. Tuple bindings follow payload order. Record patterns select fields by name, may omit fields, and support bindingName = fieldName aliases. Each arm has its own scope. The compiler warns when variants are missing; an arm naming the enum type supplies a default. Type-guard switches do not support enum values.",
+        "code": "func position(event GuiEvent) int {\n    match (event) {\n        GuiEvent.GuiLoad => return 0;\n        GuiEvent.KeyPress(_) => return 1;\n        GuiEvent.Click{clickX = x, clickY = y} => {\n            return clickX->int + clickY->int;\n        }\n    }\n    return 0;\n}",
+        "note": "Use GuiEvent => statement; for a default arm. Tuple patterns must include every position; use _ for omitted values."
+      },
+      {
+        "id": "3",
+        "title": "Extract named fields",
+        "text": "A named record extraction can select only the fields you need. The names on the left of the declaration or assignment match the binding names in the pattern, so field order does not matter. An alias gives a field a different local name.",
+        "code": "func clickX(event GuiEvent) int {\n    if (event == GuiEvent.Click) {\n        x, y := event.(GuiEvent.Click{y, x});\n        clickX, clickY := event.(GuiEvent.Click{clickY = y, clickX = x});\n        return x->int + clickX->int;\n    }\n    return 0;\n}",
+        "note": ""
+      },
+      {
+        "id": "4",
+        "title": "Fixed payload variants",
+        "text": "A variant can define a fixed payload with := and an inferred type, or with : Type = and an explicit type. Accessing that variant constructs a value carrying the payload. These remain distinct enum variants rather than C-style integer constants.",
+        "code": "struct RGB { r, g, b int; }\nenum Color {\n    Red: RGB = {255, 0, 0},\n    Green: RGB = {0, 255, 0},\n    Blue := RGB{0, 0, 255},\n    Other(RGB),\n}\nenum Number { One := 1, Two := 2, Other(int) }",
+        "note": ""
       }
     ]
   },
@@ -442,7 +547,7 @@ export const docs: Doc[] = [
       {
         "id": "5",
         "title": "Current boundaries",
-        "text": "Generic function values, type argument inference, enum lowering, operator dispatch, closures, and defer statements are not implemented by the backend. Parser acceptance alone does not guarantee executable support. Use `ocean check` to validate the complete path through native linking.\n\nSeparate the syntax accepted by the parser from operations that the native backend can actually compile. An unsupported construct can parse successfully and then fail during checking or code generation. `ocean check` exercises the full compilation path without executing the program, which is the most useful validation when experimenting with a feature.\n\nFor current code, prefer direct calls, concrete specializations, and explicit type switches. Do not assume that an interface declaration implies dynamic method dispatch, or that a generic declaration implies inferred call-site type arguments. These are distinct capabilities with separate implementation requirements.",
+        "text": "Generic function values, type argument inference, operator dispatch, closures, and defer statements are not implemented by the backend. Parser acceptance alone does not guarantee executable support. Use `ocean check` to validate the complete path through native linking.\n\nSeparate the syntax accepted by the parser from operations that the native backend can actually compile. An unsupported construct can parse successfully and then fail during checking or code generation. `ocean check` exercises the full compilation path without executing the program, which is the most useful validation when experimenting with a feature.\n\nFor current code, prefer direct calls, concrete specializations, and explicit type switches. Do not assume that an interface declaration implies dynamic method dispatch, or that a generic declaration implies inferred call-site type arguments. These are distinct capabilities with separate implementation requirements.",
         "code": "",
         "note": ""
       }
@@ -561,7 +666,8 @@ export const docs: Doc[] = [
         "title": "Import packages",
         "text": "Import qualifiers default to the declared package name. Aliases use `as`. Names beginning with a Unicode uppercase letter are exported; lowercase declarations are private to their package. Import cycles and mixed package names are errors.\n\nThe import path identifies where a package is found; the qualifier used in expressions normally comes from that package’s `package` declaration. An alias changes the local qualifier for this file, which is useful when two imports would otherwise have the same package name.\n\nExporting is name-based. A capitalized function such as `Answer` is available to importers, while lowercase helpers remain accessible only inside their own package. The rule also applies to types, global variables, receiver methods, aliases, and interfaces. Dot imports expose exported names directly; blank imports do not introduce a normal qualifier.",
         "code": "import \"github.com/yourname/project/helper\";\nimport \"github.com/example/collections/list\" as lists;\n\n// Inside a function:\nanswer := helper.Answer();",
-        "note": "",
+        "note": "See the Packages & imports language guide for dot imports, blank imports, visibility, and receiver ownership.",
+        "links": [{ "label": "Packages & imports", "href": "/docs/language/packages-and-imports/" }],
         "after": "In this illustrative module layout, the first import supplies `helper.Answer()`. The second package is bound as `lists` regardless of its usual qualifier. Each referenced package must actually exist and declare the exported names you call."
       },
       {

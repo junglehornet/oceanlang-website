@@ -681,6 +681,63 @@ export const docs: Doc[] = [
     ]
   },
   {
+    "slug": "language/inline-assembly",
+    "group": "Language guide",
+    "title": "Inline assembly",
+    "description": "Write architecture-specific assembly with optional platform selection.",
+    "sections": [
+      {
+        "id": "syntax",
+        "title": "Architecture and platform selection",
+        "text": "Inside a function, write `asm architecture[/platform] { assembly }`. The architecture is required: `x86_64`, `aarch64`, or `riscv64`. An optional `/linux`, `/macos`, or `/windows` restricts the block to that host platform. Braces are required; a trailing semicolon is optional. Unknown selectors are errors.",
+        "code": "func main() {\n    asm x86_64/linux {\n        nop\n    }\n    asm aarch64 {\n        nop\n    }\n}",
+        "note": ""
+      },
+      {
+        "id": "assembly-syntax",
+        "title": "Assembly syntax and matching blocks",
+        "text": "Ocean currently builds for the host through Clang. Nonmatching blocks are omitted without assembling their bodies; selectors do not enable cross-compilation. Every matching block executes in source order. x86-64 uses Intel syntax; AArch64 and RISC-V use their standard LLVM assembler syntax. Bodies are raw assembly, including newlines, directives, and literal `$` characters, with balanced braces outside quoted strings and comments. Use `#` line comments on x86-64 and RISC-V, and `//` on AArch64; `/* ... */` comments are also recognized.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "operands",
+        "title": "Read and write Ocean variables",
+        "text": "Use `${name}` outside assembly strings/comments to read or write a mutable scalar variable or pointer. Each placeholder is a memory operand, not its value or an address register; use an instruction of the variable's storage width. Initialize variables before the block.",
+        "code": "value := 7;\nasm x86_64 {\n    mov rax, ${value}\n    add rax, 3\n    mov ${value}, rax\n}\n// value is now 10 on x86-64.",
+        "note": ""
+      },
+      {
+        "id": "operand-limits",
+        "title": "Operand limits",
+        "text": "The operand limit depends on the architecture: `x86_64` supports more than four distinct operand names with no compiler-imposed count limit. Both `aarch64` and `riscv64` support at most four distinct operand names per block.\n\nAArch64 and RISC-V currently reserve registers to address operands, which limits how many distinct variables a block can reference. x86-64 can address stack variables directly and does not have this four-operand restriction. Repeated references to `${name}` share one operand: reading and then writing `${value}` counts as one distinct variable, regardless of architecture. Collections, structs, constants, and arbitrary Ocean expressions are not operands.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "registers",
+        "title": "Clobbers and reserved registers",
+        "text": "Ordinary integer and vector/floating-point registers are conservatively clobbered, with read/write effects for operands, a memory barrier, and condition codes where applicable. Preserve frame pointers, reserved registers, and special machine state: x86-64 `rbp`; AArch64 `x18`/`x29`; RISC-V `gp`/`tp`/`s0`. When operands are present, also preserve AArch64 `x9`–`x15` and RISC-V `t3`–`t6`: the compiler uses them to address operands. Native calls may overwrite these address registers, so save and restore them around calls.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "stack-and-calls",
+        "title": "Stack usage and native calls",
+        "text": "Blocks enter with an aligned stack. Functions containing matching asm use no red zone and are not inlined. Stack use and native calls must follow the platform ABI, restore the stack pointer exactly, preserve operand-address registers, and provide any required call space. Access operands before changing the stack and after restoring it. Do not return, branch out of the block, or unwind through it. Numeric local labels avoid collisions when blocks are repeated.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "build-diagnostics",
+        "title": "CPU support and build diagnostics",
+        "text": "Instructions must be supported by the host's default Clang target; there is no CPU-feature selection. Native `check`/build reports assembler errors through Clang; `--emit-llvm` alone does not assemble instructions.",
+        "code": "",
+        "note": ""
+      }
+    ]
+  },
+  {
     "slug": "tooling/packages",
     "group": "Tooling",
     "title": "Packages & modules",
@@ -868,10 +925,23 @@ export const docs: Doc[] = [
       {
         "id": "3",
         "title": "String conversion",
-        "text": "`Sprint`(items `...any`) returns the text that `Print` would write. The implementation handles signed integers, floats, booleans, strings, arrays, and structs; raw buffers use a placeholder. Current floating output uses two decimal places.\n\n`Sprint` is useful when you want the same conversion rules as the printing functions without writing to stdout. Integer values are rendered in decimal, booleans as `true` or `false`, and strings as their contents. Arrays are rendered with bracketed elements. Struct formatting uses reflected field names and field values.\n\nThe current floating formatter uses two decimal places, so this API should not be assumed to preserve arbitrary input precision in its default output. A raw buffer is represented by a placeholder rather than traversed as a length-aware collection.",
+        "text": "`Sprint`(items `...any`) returns the text that `Print` would write. The implementation handles signed integers, floats, booleans, strings, arrays, and structs; raw buffers use a placeholder. Current floating output uses two decimal places.\n\n`Sprint` is useful when you want the same conversion rules as the printing functions without writing to stdout. Integer values are rendered in decimal, booleans as `true` or `false`, and strings as their contents. Arrays are rendered with bracketed elements. Struct formatting uses reflected field names and field values.\n\nThe current floating formatter uses two decimal places, so this API should not be assumed to preserve arbitrary input precision in its default output. It uses exact binary64 conversion with ties-to-even rounding in Ocean, independent of the C locale. A raw buffer is represented by a placeholder rather than traversed as a length-aware collection.",
         "code": "text := io.Sprint(42);\nvalues := int[]{1, 2, 3};\nio.Println(values);",
         "note": "",
         "after": "`text` contains `\"42\"`. The final statement prints `[1 2 3]`. The local string and array have their usual owned lifetimes; returning a formatted string gives the caller an independent value."
+      },
+      {
+        "id": "output-implementation",
+        "title": "Output implementation and platform support",
+        "text": "The standard-library `io` package has no `extern` declarations. Output uses assembly system calls on Linux (x86-64, AArch64, RISC-V64) and macOS (x86-64, AArch64). Windows x86-64/AArch64 assembly calls `GetStdHandle` and `WriteFile`; native Windows executable links include `kernel32` (use `-lkernel32` when linking saved IR manually). Other architecture/platform combinations report unsupported output. Writes handle partial results and retry Unix interruptions; other output failures panic.\n\nCompiler runtime and boxed values still use native libraries/libffi; this does not make executables freestanding.",
+        "code": "",
+        "note": "",
+        "links": [
+          {
+            "label": "Inline assembly",
+            "href": "/docs/language/inline-assembly/"
+          }
+        ]
       },
       {
         "id": "4",
@@ -1141,7 +1211,7 @@ export const docs: Doc[] = [
     {
       "id": "relationships",
       "title": "How packages connect to the compiler",
-      "text": "`io` implements printing and formatting in Ocean, including reflected struct formatting and native C interfaces. `os` stores the process arguments supplied through its internal `setArgs` hook; application code calls `os.Args()`. `reflect` exposes `Field`, `Fields`, and `IsStruct`.\n\nReflection primitives are available only to the actual `reflect` package under the configured standard-library root. A project-local package with the same name does not gain access. Changes to these hooks or to native interfaces may require matching changes and tests in `ocean-c`.",
+      "text": "`io` implements printing and formatting in Ocean, including reflected struct formatting, portable float conversion, and platform assembly for stdout. `os` stores the process arguments supplied through its internal `setArgs` hook; application code calls `os.Args()`. `reflect` exposes `Field`, `Fields`, and `IsStruct`.\n\nReflection primitives are available only to the actual `reflect` package under the configured standard-library root. A project-local package with the same name does not gain access. Changes to these hooks or to native interfaces may require matching changes and tests in `ocean-c`.",
       "code": "",
       "note": ""
     },

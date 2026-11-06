@@ -10,6 +10,7 @@
  let query = $state('');
  let menuOpen = $state(false);
  let searchPanel = $state<HTMLDivElement>();
+ let cookiePopup = $state<'ask' | 'sorry' | 'dismissed'>('ask');
  $effect(() => {
   if (searchOpen) {
    const previous = document.activeElement as HTMLElement;
@@ -47,3 +48,63 @@
  </div>
 </footer>
 {#if searchOpen}<div class="search-backdrop" role="presentation" onclick={(e)=>{if(e.target===e.currentTarget)searchOpen=false;}}><div bind:this={searchPanel} onkeydown={trapFocus} class="search-dialog" role="dialog" aria-modal="true" aria-label="Search documentation" tabindex="-1"><div class="search-input"><span>⌕</span><input aria-label="Search documentation" placeholder="Search the Ocean docs…" bind:value={query}/><button onclick={()=>searchOpen=false} aria-label="Close search">Esc</button></div><div class="search-results">{#if results.length===0}<p>No results. Try “arrays”, “install”, or “functions”.</p>{/if}{#each results as result}<a href={'/docs/'+result.slug+'/'} onclick={()=>searchOpen=false}><small>{result.group}</small><strong>{result.title}<span>↗</span></strong><p>{result.description}</p></a>{/each}</div><div class="search-bottom">Search the language guide, tooling, and standard library</div></div></div>{/if}
+
+{#if cookiePopup !== 'dismissed'}
+ <div class="cookie-popup" role="dialog" aria-label="Cookie preferences">
+  {#if cookiePopup === 'ask'}
+   <p class="cookie-title">Allow cookies?</p>
+   <p class="cookie-text">Do you want to allow this website to store cookies on your device?</p>
+   <div class="cookie-actions">
+    <button class="cookie-btn primary" onclick={() => (cookiePopup = 'sorry')}>Yes</button>
+    <button class="cookie-btn secondary" onclick={() => (cookiePopup = 'dismissed')}>No</button>
+    <button class="cookie-btn secondary" onclick={() => (cookiePopup = 'dismissed')}>Hell no</button>
+   </div>
+  {:else}
+   <p class="cookie-text">Sorry, but our website doesn't use any cookies</p>
+   <div class="cookie-actions">
+    <button class="cookie-btn secondary" onclick={() => (cookiePopup = 'ask')}>Try Again</button>
+   </div>
+  {/if}
+ </div>
+{/if}
+
+<style>
+ .cookie-popup {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  max-width: 340px;
+  width: calc(100vw - 48px);
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 20px 50px var(--shadow);
+ }
+ .cookie-title {
+  font: 600 15px Manrope, sans-serif;
+  color: var(--text);
+  margin-bottom: 6px;
+ }
+ .cookie-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+ }
+ .cookie-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+ }
+ .cookie-btn {
+  padding: 8px 14px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: transform 0.15s, background 0.15s;
+ }
+ .cookie-btn:hover {
+  transform: translateY(-1px);
+ }
+</style>

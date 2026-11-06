@@ -1,6 +1,133 @@
 <script lang="ts">
  import Code from '$lib/components/Code.svelte';
  let selected = $state(0);
+ let ripples = $state<{ id: number; x: number; y: number }[]>([]);
+ let nextRippleId = 0;
+
+ let heroBackground = $state<HTMLDivElement>();
+ let glowPos = $state({ x: 0, y: 0, rx: 600, ry: 550 });
+ let draggingHero = $state(false);
+ let heroDetached = $state(false);
+ let returningHero = $state(false);
+ let dragStart = { x: 0, y: 0 };
+ let returnFrame = 0;
+
+ function getHeroHomeCenter() {
+  if (!heroBackground) return { cx: 0, cy: 0, rx: 0, ry: 0 };
+  const rect = heroBackground.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const cx = rect.left + rect.width * 0.5 + Math.min(0.2 * vw, 288);
+  const cy = rect.top + rect.height * 0.35;
+  const rx = Math.min(0.65 * vw, 900);
+  const ry = rect.height * 0.85;
+  return { cx, cy, rx, ry };
+ }
+
+ function syncGlowRadii() {
+  const { rx, ry } = getHeroHomeCenter();
+  if (rx > 0 && ry > 0) {
+   glowPos.rx = rx;
+   glowPos.ry = ry;
+  }
+ }
+
+ function isInsideHeroGrabRadius(clientX: number, clientY: number) {
+  const { cx, cy, rx, ry } = getHeroHomeCenter();
+  const grabRx = rx * 0.42;
+  const grabRy = ry * 0.42;
+  if (grabRx <= 0 || grabRy <= 0) return false;
+  const dx = (clientX - cx) / grabRx;
+  const dy = (clientY - cy) / grabRy;
+  return dx * dx + dy * dy <= 1;
+ }
+
+ function returnHeroToHome() {
+  if (returnFrame) cancelAnimationFrame(returnFrame);
+  draggingHero = false;
+  returningHero = true;
+
+  const startX = glowPos.x;
+  const startY = glowPos.y;
+  const duration = 1100;
+  const startTime = performance.now();
+
+  function step(now: number) {
+   const t = Math.min(1, (now - startTime) / duration);
+   const ease = 1 - Math.pow(1 - t, 3);
+   const { cx, cy, rx, ry } = getHeroHomeCenter();
+   glowPos.x = startX + (cx - startX) * ease;
+   glowPos.y = startY + (cy - startY) * ease;
+   glowPos.rx = rx;
+   glowPos.ry = ry;
+
+   if (t < 1) {
+    returnFrame = requestAnimationFrame(step);
+   } else {
+    returnFrame = 0;
+    returningHero = false;
+    heroDetached = false;
+   }
+  }
+
+  returnFrame = requestAnimationFrame(step);
+ }
+
+ function onPointerMove(e: PointerEvent) {
+  if (e.pointerType === 'touch') return;
+
+  if (draggingHero) {
+   const dist = Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y);
+   if (dist > 3) {
+    if (returnFrame) {
+     cancelAnimationFrame(returnFrame);
+     returnFrame = 0;
+    }
+    returningHero = false;
+    window.getSelection()?.removeAllRanges();
+    syncGlowRadii();
+    heroDetached = true;
+    draggingHero = false;
+   }
+  }
+
+  if (heroDetached && !returningHero) {
+   glowPos.x = e.clientX;
+   glowPos.y = e.clientY;
+   syncGlowRadii();
+  }
+ }
+
+ function onPointerDown(e: PointerEvent) {
+  const id = nextRippleId++;
+  ripples.push({ id, x: e.clientX, y: e.clientY });
+  setTimeout(() => {
+   ripples = ripples.filter((r) => r.id !== id);
+  }, 750);
+
+  if (e.button !== 0) return;
+  const target = e.target as HTMLElement | null;
+  if (target?.closest('a, button, input, pre, code')) return;
+
+  if (heroDetached && !returningHero) {
+   returnHeroToHome();
+   return;
+  }
+
+  if (!heroDetached && isInsideHeroGrabRadius(e.clientX, e.clientY)) {
+   e.preventDefault();
+   window.getSelection()?.removeAllRanges();
+   glowPos.x = e.clientX;
+   glowPos.y = e.clientY;
+   syncGlowRadii();
+   draggingHero = true;
+   dragStart = { x: e.clientX, y: e.clientY };
+  }
+ }
+
+ function onPointerUp() {
+  draggingHero = false;
+ }
+
  const examples = [
   {
    title: 'Print a formatted message',
@@ -26,13 +153,38 @@
  ];
 </script>
 
+<svelte:window
+ onpointermove={onPointerMove}
+ onpointerdown={onPointerDown}
+ onpointerup={onPointerUp}
+ onpointercancel={onPointerUp}
+/>
+
 <svelte:head>
  <title>Ocean Programming Language</title>
 </svelte:head>
 
-<main id="main">
- <div class="hero-background">
-  <div class="hero-art" aria-hidden="true"></div>
+<div class="cursor-dots-layer" aria-hidden="true">
+ <div
+  class="cursor-dots-glow"
+  class:active={heroDetached}
+  style="--mx: {glowPos.x}px; --my: {glowPos.y}px; --grx: {glowPos.rx}px; --gry: {glowPos.ry}px;"
+ ></div>
+ {#each ripples as ripple (ripple.id)}
+  <div
+   class="cursor-dots-ripple"
+   style="--rx: {ripple.x}px; --ry: {ripple.y}px;"
+  ></div>
+ {/each}
+</div>
+
+<main id="main" class:dragging-hero={draggingHero}>
+ <div class="hero-background" bind:this={heroBackground}>
+  <div
+   class="hero-art"
+   class:detached={heroDetached}
+   aria-hidden="true"
+  ></div>
  <section class="hero">
   <div class="hero-content">
    <a class="eyebrow release-link" href="/docs/getting-started/">
@@ -115,6 +267,105 @@
 </main>
 
 <style>
+ @property --ripple-r {
+  syntax: '<length>';
+  initial-value: 0px;
+  inherits: false;
+ }
+ #main {
+  position: relative;
+  z-index: 1;
+ }
+ #main.dragging-hero {
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: grabbing;
+ }
+ .hero-art.detached {
+  opacity: 0;
+ }
+ .cursor-dots-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+ }
+ .cursor-dots-glow,
+ .cursor-dots-ripple {
+  position: absolute;
+  inset: 0;
+  background-image:
+   radial-gradient(circle, var(--accent) 0.8px, transparent 1px),
+   radial-gradient(circle, var(--accent) 0.6px, transparent 0.9px);
+  background-size: 6px 6px;
+  background-position: 0 0, 3px 3px;
+ }
+ .cursor-dots-glow {
+  opacity: 0;
+  -webkit-mask-image:
+   radial-gradient(
+    ellipse var(--grx) var(--gry) at var(--mx) var(--my),
+    black,
+    transparent
+   ),
+   linear-gradient(
+    180deg,
+    transparent calc(var(--my) - var(--gry)),
+    black calc(var(--my) - var(--gry) * 0.59),
+    black calc(var(--my) + var(--gry) * 0.35),
+    transparent calc(var(--my) + var(--gry) * 0.76)
+   );
+  mask-image:
+   radial-gradient(
+    ellipse var(--grx) var(--gry) at var(--mx) var(--my),
+    black,
+    transparent
+   ),
+   linear-gradient(
+    180deg,
+    transparent calc(var(--my) - var(--gry)),
+    black calc(var(--my) - var(--gry) * 0.59),
+    black calc(var(--my) + var(--gry) * 0.35),
+    transparent calc(var(--my) + var(--gry) * 0.76)
+   );
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+ }
+ .cursor-dots-glow.active {
+  opacity: 0.3;
+ }
+ .cursor-dots-ripple {
+  --ripple-r: 0px;
+  -webkit-mask-image: radial-gradient(
+   circle at var(--rx) var(--ry),
+   transparent calc(var(--ripple-r) - 28px),
+   black var(--ripple-r),
+   transparent calc(var(--ripple-r) + 28px)
+  );
+  mask-image: radial-gradient(
+   circle at var(--rx) var(--ry),
+   transparent calc(var(--ripple-r) - 28px),
+   black var(--ripple-r),
+   transparent calc(var(--ripple-r) + 28px)
+  );
+  animation: cursor-dot-ripple 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+ }
+ @keyframes cursor-dot-ripple {
+  0% {
+   --ripple-r: 0px;
+   opacity: 0.55;
+  }
+  100% {
+   --ripple-r: 180px;
+   opacity: 0;
+  }
+ }
+ @media (prefers-reduced-motion: reduce), (hover: none) {
+  .cursor-dots-layer {
+   display: none;
+  }
+ }
  .hero-code { transform: none; }
  .language-section {
   display: grid;

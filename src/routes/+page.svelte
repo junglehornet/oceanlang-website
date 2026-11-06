@@ -7,21 +7,21 @@
    file: 'hello.oc',
    code: 'package main;\n\nimport "io";\n\nfunc main() {\n    name := "Ocean";\n    io.Printfln("Hello, {}!", name);\n}',
    output: 'Hello, Ocean!',
-   explanation: 'Every executable starts in package main. Import io for console output; {} inserts a value into a formatted string.'
+   explanation: 'A small program, from source to console output.'
   },
   {
    title: 'Copy a dynamic array',
    file: 'values.oc',
    code: 'package main;\n\nimport "io";\n\nfunc main() {\n    original := int[]{1, 2, 3};\n    copy := original;\n    copy[0] = 42;\n\n    io.Println(original);\n    io.Println(copy);\n}',
    output: '[1 2 3]\n[42 2 3]',
-   explanation: 'Dynamic array assignment creates an independent copy. Changing copy[0] leaves the original array unchanged.'
+   explanation: 'Change the copy, keep the original. Each array has its own data.'
   },
   {
    title: 'Use a generic struct',
    file: 'generics.oc',
    code: 'package main;\n\nimport "io";\n\nstruct Box<T> { value T; }\n\nfunc main() {\n    answer := Box<int>{42};\n    io.Println(answer.value);\n}',
    output: '42',
-   explanation: 'Box<T> can hold different types of values. Box<int> specializes the struct with an integer field at compile time.'
+   explanation: 'One Box definition can hold different types. Here, it holds an integer.'
   }
  ];
 </script>
@@ -39,7 +39,7 @@
     <span class="status-dot"></span> Ocean 0.1 · In development
    </a>
    <h1>The <em>Ocean</em><br/>programming<br/>language.</h1>
-   <p class="hero-description">A compiled language with static types, generics, and value semantics. Ocean produces native executables through LLVM and Clang, with scope-based cleanup for strings and dynamic arrays.</p>
+   <p class="hero-description">Ocean compiles to native code, catches type errors before your program runs, and handles cleanup for everyday strings and arrays.</p>
    <div class="hero-actions">
     <a class="button primary" href="/docs/getting-started/">Get started <span>→</span></a>
     <a class="button secondary" href="/docs/">Documentation</a>
@@ -61,26 +61,15 @@
  </div>
 
  <section id="language" class="section language-section">
-  <div class="section-heading">
-   <div><h2>Language features</h2></div>
-   <p>Ocean combines low-level memory control with convenient, easy-to-use builtin types that are memory safe and feel intuitive.</p>
+  <h2>Why Ocean?</h2>
+  <div class="language-overview">
+   <p>Ocean brings familiar syntax and built-in strings and arrays to a language that gives you direct control over memory. You can write everyday code without managing every allocation by hand, and reach for pointers when you need them.</p>
+   <p>If you know Go, the packages, functions, and short variable declarations will feel familiar. The difference is in how data lives: Ocean cleans up strings and arrays when they leave scope, without a garbage collector. Assign an array to another variable and you get an independent copy.</p>
+   <p>If you know C, you can still work directly with pointers and call C functions. Ocean adds conveniences like generics and automatic cleanup for strings and arrays. Memory you allocate through pointers is still yours to manage.</p>
+   <a class="text-link" href="/docs/language/memory/">How memory works in Ocean →</a>
   </div>
-  <div class="feature-grid">
-   <a href="/docs/language/functions/">
-    <h3>Functions and types</h3>
-    <p>Infer local variable types, return multiple results, and use generic structs, functions, and methods to organize your code.</p>
-    <span class="text-link">Language guide →</span>
-   </a>
-   <a href="/docs/language/memory/">
-    <h3>Values and memory</h3>
-    <p>Dynamic arrays and strings copy by value and clean up at scope exit, preventing memory bugs. Pointers provide direct, low-level access to heap memory.</p>
-    <span class="text-link">Memory model →</span>
-   </a>
-   <a href="/docs/tooling/editor/">
-    <h3>Compiler and editor tools</h3>
-    <p>Build, run, and check packages from the command line. Connect the language server for diagnostics, completion, and navigation.</p>
-    <span class="text-link">Tooling →</span>
-   </a>
+  <div class="language-example">
+   <Code code={'// Create a dynamic array of integers.\noriginal := int[]{1, 2, 3};\n\n// Assignment copies the array.\ncopy := original;\ncopy[0] = 42;\n\n// The original stays unchanged.\nio.Println(original); // [1 2 3]\nio.Println(copy);     // [42 2 3]'} />
   </div>
  </section>
 
@@ -88,7 +77,7 @@
  <section class="example-section section">
   <div class="example-intro">
    <h2>A few examples</h2>
-   <p>These programs show the syntax for console output, array copies, and generic types. Each one can be saved as main.oc and run with ocean run .</p>
+   <p>Take a look at the syntax, how arrays behave, and a simple generic type.</p>
    <div class="example-tabs" role="tablist" aria-label="Code examples">
     {#each examples as example, i}
      <button id={'example-tab-'+i} aria-controls="example-panel" role="tab" aria-selected={selected===i} class:selected={selected===i} onclick={()=>selected=i}>
@@ -96,7 +85,7 @@
      </button>
     {/each}
    </div>
-   <a class="text-link" href="/docs/language/variables/">Read about variables and types →</a>
+   <a class="text-link" href="/docs/language/variables/">Explore the language guide →</a>
   </div>
   <div id="example-panel" class="example-panel" role="tabpanel" aria-labelledby={'example-tab-'+selected}>
    <Code code={examples[selected].code} label={examples[selected].file}/>
@@ -121,6 +110,43 @@
     <a href="/docs/library/io/"><div><h3>Standard library</h3><p>Reference documentation for io, os, and reflect.</p></div><span>→</span></a>
    </div>
   </div>
-  <div class="development-note"><h3>Development status</h3><p>Ocean is under active development. The documentation describes the current compiler, including implementation limits. The compiler and standard library are available on <a href="https://codeberg.org/junglehornet/ocean-c" target="_blank" rel="noopener noreferrer">Codeberg ↗</a>.</p></div>
+  <div class="development-note"><h3>Development status</h3><p>Ocean is young and still changing. Expect rough edges and a small standard library. Follow development or contribute on <a href="https://codeberg.org/junglehornet/ocean-c" target="_blank" rel="noopener noreferrer">Codeberg ↗</a>.</p></div>
  </section>
 </main>
+
+<style>
+ .hero-code { transform: none; }
+ .language-section {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  grid-template-areas: "heading overview" "example overview";
+  grid-template-rows: auto 1fr;
+  gap: 24px 48px;
+  border-top: 1px solid var(--line);
+ }
+ .language-section h2 {
+  grid-area: heading;
+  font-size: 42px;
+  line-height: 1.25;
+  letter-spacing: -1.9px;
+  font-weight: 500;
+ }
+ .language-overview { grid-area: overview; max-width: 660px; min-width: 0; }
+ .language-example { grid-area: example; min-width: 0; }
+ .language-example :global(.code-block) { margin: 0; }
+ .language-overview p {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.8;
+ }
+ .language-overview p + p { margin-top: 22px; }
+ @media (max-width: 760px) {
+  .language-section {
+   grid-template-columns: 1fr;
+   grid-template-areas: "heading" "overview" "example";
+   grid-template-rows: auto;
+   gap: 24px;
+  }
+  .language-section h2 { font-size: 34px; }
+ }
+</style>

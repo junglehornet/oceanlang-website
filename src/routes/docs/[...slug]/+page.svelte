@@ -45,7 +45,6 @@
     {#if section.note}<aside class="callout"><span>↳</span><div><Prose text={section.note}/></div></aside>{/if}
    </section>
   {/each}
-  <div class="doc-end-note">This page documents the current Ocean compiler and standard library.</div>
   <nav class="doc-pagination" aria-label="Previous and next pages">
    {#if data.previous}
     <a href={'/docs/'+data.previous.slug+'/'}><small>← Previous</small><strong>{data.previous.title}</strong></a>

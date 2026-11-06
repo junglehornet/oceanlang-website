@@ -8,6 +8,17 @@ export const docs: Doc[] = [
     "description": "Build and install the compiler and standard library, then write, check, and run your first Ocean program.",
     "sections": [
       {
+        "id": "agent-skill",
+        "title": "Code with an agent skill",
+        "text": "The compiler repository on Codeberg includes an Ocean agent skill covering current syntax, tooling, packages, modules, and the build system. Download the latest SKILL.md from the main branch and save it as ocean/SKILL.md in your coding agent’s skills directory. Use your agent’s skill installation instructions to choose that directory.",
+        "code": "",
+        "note": "The download follows the main branch, so download it again when updating your compiler to keep the guidance current.",
+        "links": [
+          { "label": "View the Ocean agent skill in the compiler repository", "href": "https://codeberg.org/junglehornet/ocean-c/src/branch/main/skills/ocean/SKILL.md" },
+          { "label": "Download the latest SKILL.md", "href": "https://codeberg.org/junglehornet/ocean-c/raw/branch/main/skills/ocean/SKILL.md" }
+        ]
+      },
+      {
         "id": "source",
         "title": "Get the source",
         "text": "Ocean currently builds from source. Clone the compiler and standard library into sibling directories. Git is needed for the checkout and for external module downloads. The links below point to the project’s source repositories.\n\nThe compiler and library are separate repositories. Once compiled, the ocean binary will search for the standard library at `<binary-path>/../src/.` The recommended installation method is to create a directory `/usr/local/lib/ocean/` and then add `bin` and `src` directories inside the ocean directory. Place the compiler binary inside the bin directory and add the directory to your path. Copy the standard library source code to the src directory.\n\nIMPORTANT: Do not compile the standard library. Directly copy the source files into the src directory, preserving the directory structure from the ocean-src repo.\n\nThe commands below create `ocean-c` and `ocean-src` in your current directory, then enter the compiler checkout. Choose a parent directory where you normally keep development projects. After you have created `/usr/local/lib/ocean/src/` you can use the command `sudo rsync -av --include=\"*/\" --include=\"*.oc\" --exclude=\"*\" ./ocean-src/ /usr/local/lib/ocean/src` while in the directory containing `ocean-src` (the one you ran `git clone` in) to copy the standard library into the required location.",
@@ -74,7 +85,7 @@ export const docs: Doc[] = [
       {
         "id": "2",
         "title": "Built-in scalar types",
-        "text": "`int` and `i64` are signed 64-bit integers. `i32`, `i16`, and `i8` provide narrower signed storage. `uint`, `u64`, `u32`, `u16`, and `u8` provide unsigned integers. `float` and `f64` are double precision; `f32` is single precision. `bool` holds `true` or `false`. `string` stores immutable bytes. Choose explicit widths for binary data and C interfaces.\n\nUse `int` for ordinary integer values unless a storage or interface requirement calls for a particular width. Ocean’s `int` is 64-bit; it should not be assumed to have the same width as a C `int`. Floating-point values have different precision and rounding behavior from integers, so choose them for quantities that need fractional values.\n\nAn arrow cast, written `value -> Type`, requests an explicit conversion. It makes a type change visible at the expression where it occurs. For a compound target such as a pointer type, put the target in parentheses.",
+        "text": "`int` and `i64` are signed 64-bit integers. `i32`, `i16`, and `i8` provide narrower signed storage. `uint`, `u64`, `u32`, `u16`, and `u8` provide unsigned integers. `float` and `f64` are double precision; `f32` is single precision. `bool` holds `true` or `false`. `string` stores immutable bytes. Choose explicit widths for binary data and C interfaces.\n\nUse `int` for ordinary integer values unless a storage or interface requirement calls for a particular width. Ocean’s `int` is 64-bit; it should not be assumed to have the same width as a C `int`. Floating-point values have different precision and rounding behavior from integers, so choose them for quantities that need fractional values.\n\nInteger literals, including negative literals, automatically convert in float contexts: `depth == 0` and calls such as `measure(2)` work when the value or parameter is a float. Typed initializers, assignments, returns, and arithmetic also accept integer literals. Integer variables and expressions such as `1 + 2` still require an explicit cast; `count := 0` still infers `int`.\n\nAn arrow cast, written `value -> Type`, requests an explicit conversion. It makes a type change visible at the expression where it occurs. For a compound target such as a pointer type, put the target in parentheses.",
         "code": "small: i32 = 7;\nwide := small -> int;\nratio := 3.5;\nwhole := ratio -> int;\nnonzero := whole -> bool;",
         "note": "",
         "after": "The first conversion widens an `i32` to `int`. Converting `3.5` to `int` produces an integer, and converting a number to `bool` tests whether it is nonzero. A cast can lose information; choose the destination type according to the values your program needs to represent.",
@@ -503,6 +514,20 @@ export const docs: Doc[] = [
         "text": "A variant can define a fixed payload with := and an inferred type, or with : Type = and an explicit type. Accessing that variant constructs a value carrying the payload. These remain distinct enum variants rather than C-style integer constants.",
         "code": "struct RGB { r, g, b int; }\nenum Color {\n    Red: RGB = {255, 0, 0},\n    Green: RGB = {0, 255, 0},\n    Blue := RGB{0, 0, 255},\n    Other(RGB),\n}\nenum Number { One := 1, Two := 2, Other(int) }",
         "note": ""
+      },
+      {
+        "id": "methods",
+        "title": "Enum methods",
+        "text": "Enums support value and pointer receiver methods. Generic receiver arguments bind the enum's type parameters; methods may also declare their own explicit type parameters. Value receivers copy the enum, while pointer receivers can replace an addressable enum value. Declare methods in the package that defines the enum. Method names cannot collide with any variant name or named payload field.",
+        "code": "func (r Result<T>) unwrap() T {\n    match (r) {\n        Result.value(v) => return v;\n        Result.error(msg) => return panic msg;\n    }\n    return zero(T);\n}\n\n// result := Result<int>.value(42);\n// value := result.unwrap();",
+        "note": "Only actual variants can appear in match patterns. Result.unwrap(v) is neither a variant constructor nor a valid tuple pattern."
+      },
+      {
+        "id": "5",
+        "title": "Generic enums",
+        "text": "Enums accept type parameters and constraints, using the same syntax as structs. Specify arguments when constructing a value, such as Result<int>.value(42). Each specialization has its own type identity: Result<int> and Result<string> cannot be interchanged. Payloads may use type parameters in tuple and record fields, and enums may be nested or passed through generic functions.",
+        "code": "enum Result<T> {\n    value(T),\n    error(string),\n}\n\nfunc unwrap<T>(result Result<T>, fallback T) T {\n    match (result) {\n        Result.value(v) => return v;\n        Result.error(_) => return fallback;\n    }\n    return fallback;\n}\n\nfunc main() int {\n    result := Result<int>.value(42);\n    value := result.(Result<int>.value);\n    return unwrap<int>(result, 0);\n}",
+        "note": "Extraction and match patterns may omit arguments: result.(Result.value) and Result.value(v) use the source specialization. Explicit arguments must match the source. Constructors require explicit arguments. Enum declarations and specializations require angle brackets, such as Result<T> and Result<int>. Constraints such as enum Counter<T ~int> restrict specializations."
       }
     ]
   },
@@ -603,8 +628,8 @@ export const docs: Doc[] = [
   {
     "slug": "language/errors",
     "group": "Language guide",
-    "title": "Errors & C interop",
-    "description": "Understand runtime failures and call native libraries with an explicit ABI.",
+    "title": "Errors",
+    "description": "Understand runtime failures, panic diagnostics, and forwarding failures to callers.",
     "sections": [
       {
         "id": "1",
@@ -614,6 +639,22 @@ export const docs: Doc[] = [
         "note": "",
         "after": "A call such as `requirePositive(-1)` fails at that call site with the message `expected a positive number`. Source excerpts are embedded in the executable, so the runtime report does not depend on finding the original file on disk."
       },
+      {
+        "id": "panic-forwarding",
+        "title": "Forward panic diagnostics",
+        "text": "Use `forward panic <statement>` in a wrapper to report a returned panic at the wrapper’s caller. The statement can be a single statement or a block. A single statement keeps its usual semicolon; a block needs no trailing semicolon.\n\nOnly failures originating from `return panic \"message\";` participate. An ordinary `panic \"message\";` always reports where it occurs, even inside a forwarding block. Forwarding changes the diagnostic location; it does not catch a panic or allow execution to continue. Successful calls behave normally, and the original message and full call trace are preserved.",
+        "code": "func leaf() int {\n    return panic \"invalid input\";\n}\n\nfunc wrapper() int {\n    forward panic return leaf();\n}\n\nfunc main() int {\n    return wrapper(); // Diagnostic points to this call.\n}",
+        "note": "",
+        "after": "For several calls, write `forward panic { first(); second(); }`. Forwarding applies to calls in the annotated statement, including conditions and arguments. Consecutive forwarding callers move the location outward until a caller does not forward or the outermost call site is reached. Nested forwarding blocks in the same function do not skip extra frames. A wrapped declaration, such as `forward panic x := leaf();`, remains visible in its enclosing scope.\n\nFor example, `forward panic { panic \"hi\"; }` reports at `panic \"hi\"`; it is never forwarded. Use `return panic \"hi\";` when creating a failure that should be attributed to the caller and may be forwarded by its wrappers."
+      }
+    ]
+  },
+  {
+    "slug": "language/c-interop",
+    "group": "Language guide",
+    "title": "C interop",
+    "description": "Call native libraries with an explicit ABI and work with C strings and pointers.",
+    "sections": [
       {
         "id": "2",
         "title": "Declare external functions",

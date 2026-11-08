@@ -351,8 +351,8 @@ export const docs: Doc[] = [
       {
         "id": "formatting-output",
         "title": "Formatting output",
-        "text": "The io package uses {} placeholders rather than C printf format specifiers. `Println` appends a newline. `Sprint` and `Sprintf` return strings. Supply explicit spaces in text: `Sprint` only inserts a space between adjacent non-`string` items.\n\nChoose the formatting function according to where the result should go. `io.Printfln` writes formatted text and a newline to standard output. `io.Sprintf` builds a string for later use, which is useful when constructing a message without printing it immediately.\n\nA pair of braces consumes one argument in order. The template supplies punctuation, units, and spacing. This is usually easier to read than assembling a message through several concatenations, especially when the values are numbers or other non-string types.",
-        "code": "import \"io\";\n\n// Inside a function:\nio.Printfln(\"Depth: {} meters\", 42);\nmessage := io.Sprintf(\"Hello, {}!\", \"Ocean\");",
+        "text": "The io package uses {} placeholders rather than C printf format specifiers. `Println` appends a newline. `Sprint` returns string; `Sprintf` returns Result<string>. Supply explicit spaces in text: `Sprint` only inserts a space between adjacent non-`string` items.\n\nChoose the formatting function according to where the result should go. `io.Printfln` writes formatted text and a newline to standard output. `io.Sprintf` builds a string for later use, which is useful when constructing a message without printing it immediately.\n\nA pair of braces consumes one argument in order. The template supplies punctuation, units, and spacing. This is usually easier to read than assembling a message through several concatenations, especially when the values are numbers or other non-string types.",
+        "code": "import \"io\";\n\n// Inside a function:\nio.Printfln(\"Depth: {} meters\", 42);\nmessage := io.Sprintf(\"Hello, {}!\", \"Ocean\").unwrap();",
         "note": "",
         "after": "The printed line is `Depth: 42 meters`. The second call stores `Hello, Ocean!` in `message`; it produces no output by itself. Import `io` at the top of any source file that uses these qualified names."
       }
@@ -528,9 +528,48 @@ export const docs: Doc[] = [
         "text": "Enums accept type parameters and constraints, using the same syntax as structs. Specify arguments when constructing a value, such as Result<int>.value(42). Each specialization has its own type identity: Result<int> and Result<string> cannot be interchanged. Payloads may use type parameters in tuple and record fields, and enums may be nested or passed through generic functions.",
         "code": "enum Result<T> {\n    value(T),\n    error(string),\n}\n\nfunc unwrap<T>(result Result<T>, fallback T) T {\n    match (result) {\n        Result.value(v) => return v;\n        Result.error(_) => return fallback;\n    }\n    return fallback;\n}\n\nfunc main() int {\n    result := Result<int>.value(42);\n    value := result.(Result<int>.value);\n    return unwrap<int>(result, 0);\n}",
         "note": "Extraction and match patterns may omit arguments: result.(Result.value) and Result.value(v) use the source specialization. Explicit arguments must match the source. Constructors require explicit arguments. Enum declarations and specializations require angle brackets, such as Result<T> and Result<int>. Constraints such as enum Counter<T ~int> restrict specializations."
+      },
+      {
+        "id": "builtin-result",
+        "title": "Built-in Result<T>",
+        "text": "Result<T> is available without imports or standard-library files. It is the compiler-owned equivalent of enum Result<T> { value(T), error(string) }. Both lowercase variants and the lowercase methods are public built-ins. Ordinary package visibility rules are unchanged.\n\nConstruct Result<int>.value(42) or Result<int>.error(\"invalid number\"). Normal comparisons, extraction and match work with these variants. A user-declared Result may shadow the name and remains a distinct type. Payloads and fallbacks retain ordinary value ownership.",
+        "code": "func main() int {\n    success := Result<int>.value(42);\n    failure := Result<int>.error(\"invalid number\");\n    if (failure.unwrapOrZero() != 0) return 1;\n    return success.unwrap() + failure.unwrapOrElse(0);\n}",
+        "note": "",
+        "table": {
+          "headers": [
+            "Method",
+            "value case",
+            "error case"
+          ],
+          "rows": [
+            [
+              "`unwrap() T`",
+              "Return payload",
+              "Return a panic with the stored error string, attributed to caller"
+            ],
+            [
+              "`unwrapOrElse(fallback T) T`",
+              "Return payload",
+              "Return provided fallback value"
+            ],
+            [
+              "`unwrapOrZero() T`",
+              "Return payload",
+              "Return zero(T)"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "result-fallbacks",
+        "title": "Fallback evaluation and zero values",
+        "text": "unwrapOrElse accepts a value, not a callback. Its fallback argument is evaluated according to ordinary function-call rules, including when the Result holds a value. unwrapOrZero follows the existing zero(T) semantics; a pointer zero is a zero address and remains distinct from explicit null.\n\nBuilt-in methods appear in editor completion and hover. Their compiler-owned declarations cannot be renamed and do not navigate to a physical source file.",
+        "code": "",
+        "note": ""
       }
     ]
   },
+
   {
     "slug": "language/generics",
     "group": "Language guide",
@@ -658,7 +697,9 @@ export const docs: Doc[] = [
       {
         "id": "compatibility-note",
         "title": "Future Compatibility Note",
-        "text": "C extern functions only work because Ocean is built on top of LLVM/Clang. Because Ocean is still young, this may change in the future and therefore it is not recommended to rely heavily on C extern functions. Rather, it is recommended to either implement functionality in Ocean, use inline assembly when needed, or implement a standard-library package in Ocean if the functionality is important enough."
+        "text": "C extern functions only work because Ocean is built on top of LLVM/Clang. Because Ocean is still young, this may change in the future and therefore it is not recommended to rely heavily on C extern functions. Rather, it is recommended to either implement functionality in Ocean, use inline assembly when needed, or implement a standard-library package in Ocean if the functionality is important enough.",
+        "code": "",
+        "note": ""
       },
       {
         "id": "declare-external-functions",
@@ -685,6 +726,7 @@ export const docs: Doc[] = [
       }
     ]
   },
+
   {
     "slug": "language/inline-assembly",
     "group": "Language guide",
@@ -877,7 +919,7 @@ export const docs: Doc[] = [
     "slug": "library/io",
     "group": "Standard library",
     "title": "io",
-    "description": "Print values to standard output and build strings using the current library’s conversion and formatting functions.",
+    "description": "Print and format values, parse numeric strings into Result values, and scan files or standard input.",
     "sections": [
       {
         "id": "import-and-print",
@@ -890,8 +932,8 @@ export const docs: Doc[] = [
       {
         "id": "formatting-functions",
         "title": "Formatting functions",
-        "text": "`Printf`(format `string`, items `...any`) prints a template. `Printfln` adds a newline. `Sprintf` returns a formatted `string`. Templates use {} placeholders in argument order. An argument-count mismatch panics. This is not C-style percent formatting.\n\nEach `{}` in the template consumes the next argument. Ordinary text, including spaces and punctuation, is copied into the result. The formatter requires the number of arguments to match the number of placeholders: too few and too many both report a panic.\n\nChoose `Printf` or `Printfln` for immediate console output. Choose `Sprintf` when another function needs the formatted string or when you want to store it. The template language does not implement C percent directives or a general collection of width and precision specifiers.",
-        "code": "message := io.Sprintf(\"{} + {} = {}\", 2, 3, 5);\nio.Println(message);",
+        "text": "`Printf`(format `string`, items `...any`) prints a template. `Printfln` adds a newline. `Sprintf` returns Result<string>. Templates use {} placeholders in argument order. An argument-count mismatch returns an error Result. This is not C-style percent formatting.\n\nEach `{}` in the template consumes the next argument. Ordinary text, including spaces and punctuation, is copied into the result. The formatter requires the number of arguments to match the number of placeholders: too few and too many both return an error Result.\n\nChoose `Printf` or `Printfln` for immediate console output. Choose `Sprintf` when another function needs the formatted string or when you want to store it. The template language does not implement C percent directives or a general collection of width and precision specifiers.",
+        "code": "message := io.Sprintf(\"{} + {} = {}\", 2, 3, 5).unwrap();\nio.Println(message);",
         "note": "",
         "after": "The returned string is `2 + 3 = 5`, and `Println` then writes it followed by a newline. A percent sequence such as `%d` is ordinary text for these functions, not an integer placeholder.",
         "table": {
@@ -901,19 +943,19 @@ export const docs: Doc[] = [
           ],
           "rows": [
             [
-              "`Print(items ...any)`",
+              "`Print(items ...any) Result<int>`",
               "Writes converted values"
             ],
             [
-              "`Println(items ...any)`",
+              "`Println(items ...any) Result<int>`",
               "Writes converted values and a newline"
             ],
             [
-              "`Printf(format string, items ...any)`",
+              "`Printf(format string, items ...any) Result<int>`",
               "Writes a formatted message"
             ],
             [
-              "`Printfln(format string, items ...any)`",
+              "`Printfln(format string, items ...any) Result<int>`",
               "Writes a formatted message and a newline"
             ],
             [
@@ -921,11 +963,25 @@ export const docs: Doc[] = [
               "Returns converted values as a string"
             ],
             [
-              "`Sprintf(format string, items ...any) string`",
+              "`Sprintf(format string, items ...any) Result<string>`",
               "Returns a formatted message as a string"
             ]
           ]
         }
+      },
+      {
+        "id": "parse-numbers",
+        "title": "Parse integers and floats",
+        "text": "io.ParseInt(text string) Result<int> parses an optional leading sign followed by one or more ASCII decimal digits. It supports the complete signed 64-bit range, including -9223372036854775808. Leading zeros are allowed.\n\nio.ParseFloat(text string) Result<float> parses binary64 decimal numbers with an optional sign, optional point, and optional signed e/E exponent. At least one digit is required. Examples include .5, 1., and -1.25e2. Case-insensitive nan, inf and infinity, with an optional sign, are also accepted.\n\nBoth functions consume the entire string. Empty input, surrounding whitespace, digit separators, base prefixes, malformed syntax and trailing characters return error Results. Integer overflow and finite float overflow also return errors. Floats round to nearest with ties to even, support subnormals and signed zero, and underflow sufficiently small values to signed zero. Parsing is implemented in Ocean, independent of libc and locale.",
+        "code": "package main;\nimport \"io\";\n\nfunc main() {\n    count := io.ParseInt(\"42\").unwrap();\n    ratio := io.ParseFloat(\"1.25e-2\").unwrapOrElse(0.0);\n    parsed := io.ParseInt(\"invalid\");\n    match(parsed) {\n        Result<int>.value(value) => io.Println(value);\n        Result<int>.error(message) => io.Println(message);\n    }\n    io.Println(count, \" \", ratio);\n}",
+        "note": ""
+      },
+      {
+        "id": "parse-errors",
+        "title": "Handle parsing errors",
+        "text": "Parsing returns Result.error instead of panicking. unwrap returns the value or panics with the stored error message; unwrapOrElse returns a supplied fallback on error; unwrapOrZero returns zero(T) on error. Error strings distinguish invalid input from out-of-range input.\n\nResult<T> belongs to the language and needs no import. ParseInt and ParseFloat belong to the standard-library io package and use capitalized exported names. Update the compiler and io source tree together.",
+        "code": "",
+        "note": ""
       },
       {
         "id": "string-conversion",
@@ -938,7 +994,7 @@ export const docs: Doc[] = [
       {
         "id": "output-implementation",
         "title": "Output implementation and platform support",
-        "text": "The standard-library `io` package has no `extern` declarations. Output uses assembly system calls on Linux (x86-64, AArch64, RISC-V64) and macOS (x86-64, AArch64). Windows x86-64/AArch64 assembly calls `GetStdHandle` and `WriteFile`; native Windows executable links include `kernel32` (use `-lkernel32` when linking saved IR manually). Other architecture/platform combinations report unsupported output. Writes handle partial results and retry Unix interruptions; other output failures panic.\n\nCompiler runtime and boxed values still use native libraries/libffi; this does not make executables freestanding.",
+        "text": "The standard-library `io` package has no `extern` declarations. Output uses assembly system calls on Linux (x86-64, AArch64, RISC-V64) and macOS (x86-64, AArch64). Windows x86-64/AArch64 assembly calls `GetStdHandle` and `WriteFile`; native Windows executable links include `kernel32` (use `-lkernel32` when linking saved IR manually). Other architecture/platform combinations report unsupported output. Writes handle partial results and retry Unix interruptions; other output failures return error Results.\n\nCompiler runtime and boxed values still use native libraries/libffi; this does not make executables freestanding.",
         "code": "",
         "note": "",
         "links": [
@@ -949,19 +1005,75 @@ export const docs: Doc[] = [
         ]
       },
       {
-        "id": "current-scope",
-        "title": "Current scope",
-        "text": "The checked-in io package implements output and formatting. File reading, stdin helpers, and networking APIs are not provided by this package. Use verified `extern` declarations for native functionality when needed.\n\nThis reference covers the functions present in the checked-in library. The package provides `Print`, `Println`, `Printf`, `Printfln`, `Sprint`, and `Sprintf`. Output goes to standard output; these functions do not expose a file-handle abstraction or a general reader/writer interface.\n\nIf you need another I/O operation, inspect the native API you intend to call and declare a matching extern signature, or implement an Ocean package around that interface. A similar package name in another language is not evidence that the same function exists here. The C interop guide explains pointer, string, and ABI considerations.",
-        "code": "",
+        "id": "input-and-files",
+        "title": "Input scanning and files",
+        "text": "Recoverable standard-library I/O failures return `Result<T>`. Use `.unwrap()` to\npanic on an error, or inspect the error variant to recover. `Close()` and\n`Setpos()` return no value and panic on failure; neither returns `Result<unit>`.\n\n`os.Stdin()`, `os.Stdout()`, and `os.Stderr()` return `Result<os.File>`.\nStdin is readable; stdout and stderr are writable and cannot be scanned.\n`os.Open(path string, mode os.FileMode)` also returns `Result<os.File>`.\nModes are `Read`, `Write` (create/truncate), `ReadWrite` (create without\ntruncating), `Append`, and `ReadAppend`. Binary counterparts are `Binary`\n(read-only), `BinaryWrite`, `BinaryReadWrite`, `BinaryAppend`, and\n`BinaryReadAppend`. `io.NewScanner(file)` panics for binary, closed, or\nnonreadable files. Copies share native cursor, close state and EOF state.\n\n\n\n`io.Scan()` and `io.Scanln()` return `Result<string>` using a shared stdin\nscanner. Scanner `Scan()`, `Scanln()`, and `Scanc(delimiter i8)` likewise return\n`Result<string>`. They consume the delimiter and return an empty string when it\nis immediately encountered. Scan stops at ASCII whitespace; Scanln stops at\nnewline or EOF; a preceding CR is retained. Scanc stops at the requested\nbyte or EOF. EOF is a successful result, including an empty string.\n\n`scanner.Scann(n)` returns `Result<io.ScanResult>`, with `Bytes i8[]` and\n`End bool` fields. It reads up to n bytes; End is true when EOF prevents filling\nthe request. Unlike File.Readn, the scanner buffer contains only bytes read.\nZero reads succeed without consuming input; negative sizes panic.\n`HasNext()`, `HasNextln()`, and `HasNextc(delimiter)` return `Result<bool>`.\nThey inspect buffered input and check OS readiness without waiting for more\ninput, returning true for a complete delimited segment or remaining EOF data.\nReadiness errors return errors rather than false. Readiness is a snapshot;\nanother reader can consume data before a subsequent scan.",
+        "code": "package main;\nimport \"io\";\nimport \"os\";\n\nfunc main() {\n    file := os.Open(\"input.txt\", os.FileMode.Read).unwrap();\n    scanner := io.NewScanner(file);\n    line := scanner.Scanln().unwrap();\n    io.Println(line).unwrap();\n    file.Close();\n}\n",
         "note": ""
+      },
+      {
+        "id": "byte-reads",
+        "title": "Byte reads, binary files, and file positions",
+        "text": "Read, Readn and Readend advance the shared position. Readall attempts to restore\nthe cursor even after a read failure; restoration failure returns an error and\ninvalidates buffered scanner state. Setpos also invalidates scanner buffers.\nAnother Read after EOF has already been reported panics. Negative sizes panic.\nOrdinary access errors, closed files and native I/O errors return error Results,\nnot EOF. Failed operations can have consumed bytes or written part of the output.\nClose failures are not retried because the OS may already have released the handle.\n\n`File.IsOpen()`, `CanRead()`, `CanWrite()`, and `IsBinary()` return bool.\n`os.FromDescriptor(fd, readable, writable)` adopts a native descriptor as a text\nstream; negative descriptors panic. `File.NativeHandle()` returns the native\nhandle and panics when closed. Keep one scanner per stream and avoid mixing its\nbuffered reads with direct reads or writes.\n\n`io.Print`, `Println`, `Printf`, and `Printfln` return `Result<int>` containing\nthe emitted byte count, including a newline where applicable. `io.Sprintf`\nreturns `Result<string>` and reports argument-count mismatches as errors.\n`io.Sprint` remains a plain string conversion. Sprint and all print/format functions support the full ranges of uint/u64, u32, u16, and u8 as decimal strings, including 18446744073709551615. Unix writes retry interruptions;\nother native output failures return errors.",
+        "code": "file := os.Open(\"data.bin\", os.FileMode.Binary).unwrap();\nread := file.Readn(16).unwrap();\nbytes := read.Bytes;\nshortRead := read.End;\nfile.Setpos(0);\nwholeFile := file.Readall().unwrap();\nfile.Close();\n",
+        "note": "",
+        "table": {
+          "headers": [
+            "File method",
+            "Return value and behavior"
+          ],
+          "rows": [
+            [
+              "`Read()`",
+              "`Result<int>`: unsigned byte 0–255, or -1 at EOF"
+            ],
+            [
+              "`Readn(n)`",
+              "`Result<os.ReadResult>`: `Bytes array<i8>` of length n, `End bool` for early EOF; unused bytes are zero-filled"
+            ],
+            [
+              "`Readend()`",
+              "`Result<array<i8>>`: current position through EOF, advances cursor"
+            ],
+            [
+              "`Readall()`",
+              "`Result<array<i8>>`: entire file, preserves cursor and previous EOF state"
+            ],
+            [
+              "`Readchunk(n)`",
+              "`Result<i8[]>`: up to n bytes; successful empty buffer at EOF"
+            ],
+            [
+              "`Size()`",
+              "`Result<int>`: size in bytes, requires a seekable file"
+            ],
+            [
+              "`PollRead()`",
+              "`Result<int>`: OS readiness information without blocking"
+            ],
+            [
+              "`Write(text)`",
+              "`Result<int>`: number of bytes written"
+            ],
+            [
+              "`Close()`",
+              "Closes the shared file; repeated close succeeds; native failure panics"
+            ],
+            [
+              "`Setpos(position)`",
+              "Sets next byte offset from 0 through size inclusive; bounds and native failures panic"
+            ]
+          ]
+        }
       }
     ]
   },
+
   {
     "slug": "library/os",
     "group": "Standard library",
     "title": "os",
-    "description": "Read the command-line arguments passed to an Ocean executable.",
+    "description": "Read process arguments, access standard streams, and open, read, write, and close native files.",
     "sections": [
       {
         "id": "os-args",
@@ -980,14 +1092,70 @@ export const docs: Doc[] = [
         "after": "Both invocations pass `hello` and `ocean` as user arguments. The executable name at the beginning of the result can differ between them, especially because `run` uses a temporary output file."
       },
       {
-        "id": "current-scope",
-        "title": "Current scope",
-        "text": "The current os source provides `Args`. Do not assume file-system, environment, process-spawning, or operating-system APIs from other languages exist here.\n\n`Args` is the public operation in the current package. Its internal initialization hook receives the native process arguments from compiler-generated startup code; ordinary programs should call `Args` rather than invoking that hook themselves.\n\nThere are no documented file-system, environment, or process-spawning wrappers in this checkout. If your program needs those facilities, use another package that actually implements them or add a carefully declared native interface. Check the current library source before assuming an API from another language is available under the same package name.",
-        "code": "",
+        "id": "input-and-files",
+        "title": "Input scanning and files",
+        "text": "Recoverable standard-library I/O failures return `Result<T>`. Use `.unwrap()` to\npanic on an error, or inspect the error variant to recover. `Close()` and\n`Setpos()` return no value and panic on failure; neither returns `Result<unit>`.\n\n`os.Stdin()`, `os.Stdout()`, and `os.Stderr()` return `Result<os.File>`.\nStdin is readable; stdout and stderr are writable and cannot be scanned.\n`os.Open(path string, mode os.FileMode)` also returns `Result<os.File>`.\nModes are `Read`, `Write` (create/truncate), `ReadWrite` (create without\ntruncating), `Append`, and `ReadAppend`. Binary counterparts are `Binary`\n(read-only), `BinaryWrite`, `BinaryReadWrite`, `BinaryAppend`, and\n`BinaryReadAppend`. `io.NewScanner(file)` panics for binary, closed, or\nnonreadable files. Copies share native cursor, close state and EOF state.\n\n\n\n`io.Scan()` and `io.Scanln()` return `Result<string>` using a shared stdin\nscanner. Scanner `Scan()`, `Scanln()`, and `Scanc(delimiter i8)` likewise return\n`Result<string>`. They consume the delimiter and return an empty string when it\nis immediately encountered. Scan stops at ASCII whitespace; Scanln stops at\nnewline or EOF; a preceding CR is retained. Scanc stops at the requested\nbyte or EOF. EOF is a successful result, including an empty string.\n\n`scanner.Scann(n)` returns `Result<io.ScanResult>`, with `Bytes i8[]` and\n`End bool` fields. It reads up to n bytes; End is true when EOF prevents filling\nthe request. Unlike File.Readn, the scanner buffer contains only bytes read.\nZero reads succeed without consuming input; negative sizes panic.\n`HasNext()`, `HasNextln()`, and `HasNextc(delimiter)` return `Result<bool>`.\nThey inspect buffered input and check OS readiness without waiting for more\ninput, returning true for a complete delimited segment or remaining EOF data.\nReadiness errors return errors rather than false. Readiness is a snapshot;\nanother reader can consume data before a subsequent scan.",
+        "code": "package main;\nimport \"io\";\nimport \"os\";\n\nfunc main() {\n    file := os.Open(\"input.txt\", os.FileMode.Read).unwrap();\n    scanner := io.NewScanner(file);\n    line := scanner.Scanln().unwrap();\n    io.Println(line).unwrap();\n    file.Close();\n}\n",
         "note": ""
+      },
+      {
+        "id": "byte-reads",
+        "title": "Byte reads, binary files, and file positions",
+        "text": "Read, Readn and Readend advance the shared position. Readall attempts to restore\nthe cursor even after a read failure; restoration failure returns an error and\ninvalidates buffered scanner state. Setpos also invalidates scanner buffers.\nAnother Read after EOF has already been reported panics. Negative sizes panic.\nOrdinary access errors, closed files and native I/O errors return error Results,\nnot EOF. Failed operations can have consumed bytes or written part of the output.\nClose failures are not retried because the OS may already have released the handle.\n\n`File.IsOpen()`, `CanRead()`, `CanWrite()`, and `IsBinary()` return bool.\n`os.FromDescriptor(fd, readable, writable)` adopts a native descriptor as a text\nstream; negative descriptors panic. `File.NativeHandle()` returns the native\nhandle and panics when closed. Keep one scanner per stream and avoid mixing its\nbuffered reads with direct reads or writes.\n\n`io.Print`, `Println`, `Printf`, and `Printfln` return `Result<int>` containing\nthe emitted byte count, including a newline where applicable. `io.Sprintf`\nreturns `Result<string>` and reports argument-count mismatches as errors.\n`io.Sprint` remains a plain string conversion. Sprint and all print/format functions support the full ranges of uint/u64, u32, u16, and u8 as decimal strings, including 18446744073709551615. Unix writes retry interruptions;\nother native output failures return errors.",
+        "code": "file := os.Open(\"data.bin\", os.FileMode.Binary).unwrap();\nread := file.Readn(16).unwrap();\nbytes := read.Bytes;\nshortRead := read.End;\nfile.Setpos(0);\nwholeFile := file.Readall().unwrap();\nfile.Close();\n",
+        "note": "",
+        "table": {
+          "headers": [
+            "File method",
+            "Return value and behavior"
+          ],
+          "rows": [
+            [
+              "`Read()`",
+              "`Result<int>`: unsigned byte 0–255, or -1 at EOF"
+            ],
+            [
+              "`Readn(n)`",
+              "`Result<os.ReadResult>`: `Bytes array<i8>` of length n, `End bool` for early EOF; unused bytes are zero-filled"
+            ],
+            [
+              "`Readend()`",
+              "`Result<array<i8>>`: current position through EOF, advances cursor"
+            ],
+            [
+              "`Readall()`",
+              "`Result<array<i8>>`: entire file, preserves cursor and previous EOF state"
+            ],
+            [
+              "`Readchunk(n)`",
+              "`Result<i8[]>`: up to n bytes; successful empty buffer at EOF"
+            ],
+            [
+              "`Size()`",
+              "`Result<int>`: size in bytes, requires a seekable file"
+            ],
+            [
+              "`PollRead()`",
+              "`Result<int>`: OS readiness information without blocking"
+            ],
+            [
+              "`Write(text)`",
+              "`Result<int>`: number of bytes written"
+            ],
+            [
+              "`Close()`",
+              "Closes the shared file; repeated close succeeds; native failure panics"
+            ],
+            [
+              "`Setpos(position)`",
+              "Sets next byte offset from 0 through size inclusive; bounds and native failures panic"
+            ]
+          ]
+        }
       }
     ]
   },
+
   {
     "slug": "library/reflect",
     "group": "Standard library",
@@ -1216,7 +1384,7 @@ export const docs: Doc[] = [
     {
       "id": "relationships",
       "title": "How packages connect to the compiler",
-      "text": "`io` implements printing and formatting in Ocean, including reflected struct formatting, portable float conversion, and platform assembly for stdout. `os` stores the process arguments supplied through its internal `setArgs` hook; application code calls `os.Args()`. `reflect` exposes `Field`, `Fields`, and `IsStruct`.\n\nReflection primitives are available only to the actual `reflect` package under the configured standard-library root. A project-local package with the same name does not gain access. Changes to these hooks or to native interfaces may require matching changes and tests in `ocean-c`.",
+      "text": "`io` implements printing and formatting in Ocean, including reflected struct formatting, portable float conversion, and platform assembly for stdout. `os` provides process arguments, standard streams, native File values, FileMode, Open, and Close; application code calls `os.Args()` for arguments. `reflect` exposes `Field`, `Fields`, and `IsStruct`.\n\nReflection primitives are available only to the actual `reflect` package under the configured standard-library root. A project-local package with the same name does not gain access. Changes to these hooks or to native interfaces may require matching changes and tests in `ocean-c`.",
       "code": "",
       "note": ""
     },

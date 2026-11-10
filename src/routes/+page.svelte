@@ -148,7 +148,7 @@
    file: 'generics.oc',
    code: 'package main;\n\nimport "io";\n\nstruct Box<T> { value T; }\n\nfunc main() {\n    answer := Box<int>{42};\n    io.Println(answer.value);\n}',
    output: '42',
-   explanation: 'One Box definition can hold different types. Here, it holds an integer.'
+   explanation: 'Box<T> defines a family of types. Choosing Box<int> gives this value an integer field; choosing Box<string> would create a different type with a string field.'
   }
  ];
 </script>
@@ -191,7 +191,7 @@
     <span class="status-dot"></span> Ocean 0.1 · In development
    </a>
    <h1>The <em>Ocean</em><br/>programming<br/>language.</h1>
-   <p class="hero-description">Ocean compiles to native code, catches type errors before your program runs, and handles cleanup for everyday strings and arrays.</p>
+   <p class="hero-description">Ocean compiles to native code, catches type errors before your program runs, and automatically releases the memory owned by strings, arrays, and maps when their values leave scope.</p>
    <div class="hero-actions">
     <a class="button primary" href="/docs/getting-started/">Get started <span>→</span></a>
     <a class="button secondary" href="/docs/">Documentation</a>
@@ -215,9 +215,9 @@
  <section id="language" class="section language-section">
   <h2>Why Ocean?</h2>
   <div class="language-overview">
-   <p>Ocean brings familiar syntax and built-in strings and arrays to a language that gives you direct control over memory. You can write everyday code without managing every allocation by hand, and reach for pointers when you need them.</p>
-   <p>If you know Go, the packages, functions, and short variable declarations will feel familiar. The difference is in how data lives: Ocean cleans up strings and arrays when they leave scope, without a garbage collector. Assign an array to another variable and you get an independent copy.</p>
-   <p>If you know C, you can still work directly with pointers and call C functions. Ocean adds conveniences like generics and automatic cleanup for strings and arrays. Memory you allocate through pointers is still yours to manage.</p>
+   <p>Ocean brings familiar syntax and built-in strings, arrays, and maps to a language that gives you direct control over memory. You can write everyday code without managing every allocation by hand, and reach for pointers when you need them.</p>
+   <p>If you know Go, the packages, functions, and short variable declarations will feel familiar. The difference is in how data lives: Ocean cleans up owned strings, arrays, and maps when their values leave scope, without a garbage collector. Assign an array or map to another variable and its owned contents are copied, so changing the copy does not change the original.</p>
+   <p>If you know C, you can still work directly with pointers and call C functions. Ocean adds generics and automatic cleanup for owned strings, arrays, and maps. Allocations made with new(T) still need an explicit free(pointer); copying a pointer shares its target rather than copying that object.</p>
    <a class="text-link" href="/docs/language/memory/">How memory works in Ocean →</a>
   </div>
   <div class="language-example">

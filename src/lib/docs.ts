@@ -787,14 +787,14 @@ export const docs: Doc[] = [
       {
         "id": "syntax",
         "title": "Architecture and platform selection",
-        "text": "Inside a function, write `asm architecture[/platform] { assembly }`. The architecture is required: `x86_64`, `aarch64`, or `riscv64`. An optional platform suffix, `/linux`, `/macos`, or `/windows`, additionally requires that operating system. For example, `asm x86_64/linux` is included only when compiling on an x86-64 Linux host. Braces are required; a trailing semicolon is optional. Unknown selectors are errors.",
+        "text": "Inside a function, write `asm architecture[/platform] { assembly }`. The architecture is required: `x86_64`, `aarch64`, `riscv64`, or `wasm`. An optional platform suffix, `/linux`, `/macos`, or `/windows`, additionally requires that operating system. For example, `asm x86_64/linux` is included only when compiling on an x86-64 Linux host. Braces are required; a trailing semicolon is optional. Unknown selectors are errors. Use `asm wasm { nop }` for WebAssembly; `/js` is rejected because JavaScript always uses the Wasm architecture. Wasm blocks currently support raw instructions without `${variable}` operands. Select this backend with `OCOS=js OCARCH=wasm ocean build -o main.wasm`. This emits a wasm32 module exporting main; a JavaScript WebAssembly host must supply unresolved runtime imports from env. Clang with WebAssembly support and wasm-ld are required. Native system-call I/O has no JavaScript implementation, and ocean run requires a native target.",
         "code": "func main() {\n    asm x86_64/linux {\n        nop\n    }\n    asm aarch64 {\n        nop\n    }\n}",
         "note": ""
       },
       {
         "id": "assembly-syntax",
         "title": "Assembly syntax and matching blocks",
-        "text": "Ocean currently builds for the host through Clang. Nonmatching blocks are omitted without assembling their bodies; choosing a selector does not change the compilation target. An `aarch64` block in a program built on an x86-64 host is omitted; it does not produce an AArch64 executable. Every matching block executes in source order. x86-64 uses Intel syntax; AArch64 and RISC-V use their standard LLVM assembler syntax. Bodies are raw assembly, including newlines, directives, and literal `$` characters, with balanced braces outside quoted strings and comments. Use `#` line comments on x86-64 and RISC-V, and `//` on AArch64; `/* ... */` comments are also recognized.",
+        "text": "Ocean builds for the host through Clang by default; OCOS=js OCARCH=wasm selects WebAssembly. Nonmatching blocks are omitted without assembling their bodies; choosing a selector does not change the compilation target. An `aarch64` block in a program built on an x86-64 host is omitted; it does not produce an AArch64 executable. Every matching block executes in source order. x86-64 uses Intel syntax; AArch64 and RISC-V use their standard LLVM assembler syntax. Bodies are raw assembly, including newlines, directives, and literal `$` characters, with balanced braces outside quoted strings and comments. Use `#` line comments on x86-64 and RISC-V, and `//` on AArch64; `/* ... */` comments are also recognized.",
         "code": "",
         "note": ""
       },
@@ -829,7 +829,7 @@ export const docs: Doc[] = [
       {
         "id": "build-diagnostics",
         "title": "CPU support and build diagnostics",
-        "text": "Instructions must be supported by the host's default Clang target; the Ocean CLI does not currently offer a way to select additional instruction-set features. An architecture selector chooses which block is included, not which optional CPU extensions are available. Native `check`/build reports assembler errors through Clang; `--emit-llvm` writes the assembly text into LLVM IR without assembling it. A successful IR-only build therefore does not show that the assembly instructions are valid; use `ocean check` or a native build for that verification.",
+        "text": "Instructions must be supported by the selected Clang target; the Ocean CLI does not currently offer a way to select additional instruction-set features. An architecture selector chooses which block is included, not which optional CPU extensions are available. Native `check`/build reports assembler errors through Clang; `--emit-llvm` writes the assembly text into LLVM IR without assembling it. A successful IR-only build therefore does not show that the assembly instructions are valid; use `ocean check` or a native build for that verification.",
         "code": "",
         "note": ""
       }

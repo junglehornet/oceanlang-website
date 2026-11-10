@@ -1215,6 +1215,98 @@ export const docs: Doc[] = [
   },
 
   {
+    "slug": "library/term",
+    "group": "Standard library",
+    "title": "term",
+    "description": "Query terminal dimensions, detect terminal streams, read passwords without echo, and enter or restore raw mode.",
+    "sections": [
+      {
+        "id": "overview",
+        "title": "Terminal utilities",
+        "text": "Import `term` to interact with a terminal through an open `os.File`. For example, obtain standard input with `os.Stdin().unwrap()`. Every function accepts the file itself, rather than its integer native handle or the `Result<os.File>` returned by `os.Stdin()`. Native descriptors can be adopted with `os.FromDescriptor`. The package does not close the supplied file.\n\nAll five functions return `Result` values. Inspect the error variant to recover, or call `.unwrap()` to panic on failure. Successful `MakeRaw` and `Restore` calls return `true`.",
+        "code": "",
+        "note": "",
+        "table": {
+          "headers": [
+            "Signature",
+            "Behavior"
+          ],
+          "rows": [
+            [
+              "`GetSize(file os.File) Result<Size>`",
+              "Returns the terminal width and height in character cells."
+            ],
+            [
+              "`IsTerminal(file os.File) Result<bool>`",
+              "Reports whether an open file is a terminal; invalid descriptors return errors."
+            ],
+            [
+              "`ReadPassword(file os.File) Result<string>`",
+              "Reads a line without echo and restores the previous settings."
+            ],
+            [
+              "`MakeRaw(file os.File) Result<bool>`",
+              "Saves the original settings and enables raw mode."
+            ],
+            [
+              "`Restore(file os.File) Result<bool>`",
+              "Restores the settings saved by MakeRaw."
+            ]
+          ]
+        },
+        "links": [
+          {
+            "label": "Files and standard streams →",
+            "href": "/docs/library/os/"
+          }
+        ]
+      },
+      {
+        "id": "get-size",
+        "title": "term.Size and term.GetSize",
+        "text": "`Size` is a struct in the `term` package with two exported `int` fields: `Width` is the number of columns and `Height` is the number of rows. `GetSize` queries the current dimensions, so call it again after a resize when adapting a layout. These dimensions describe character cells rather than pixels.\n\nThe query uses the terminal associated with the supplied file. Redirected files and pipes do not have terminal dimensions and return an error. Closed files, invalid descriptors, native failures, and unsupported targets also return errors.",
+        "code": "package main;\nimport \"io\";\nimport \"os\";\nimport \"term\";\n\nfunc main() {\n    input := os.Stdin().unwrap();\n    size := term.GetSize(input).unwrap();\n    io.Println(size.Width, \" columns, \", size.Height, \" rows\").unwrap();\n}",
+        "note": "",
+        "after": "The type is equivalent to `struct Size { Width int; Height int; }`. On Windows, dimensions describe the visible console window rather than its scrollback buffer."
+      },
+      {
+        "id": "is-terminal",
+        "title": "term.IsTerminal",
+        "text": "`IsTerminal(file os.File) Result<bool>` succeeds with `true` for a terminal and `false` for a valid regular file or pipe. A closed file or invalid native descriptor produces an error rather than `false`. Other native failures and unsupported targets also produce errors.\n\nCheck the stream you intend to use: stdin and stdout can be redirected independently. For example, a command can read from a terminal while writing to a file.",
+        "code": "package main;\nimport \"io\";\nimport \"os\";\nimport \"term\";\n\nfunc main() {\n    output := os.Stdout().unwrap();\n    match(term.IsTerminal(output)) {\n        Result<bool>.value(terminal) => io.Println(\"Terminal output: \", terminal).unwrap();\n        Result<bool>.error(message) => io.Println(\"Terminal check failed: \", message).unwrap();\n    }\n}",
+        "note": ""
+      },
+      {
+        "id": "read-password",
+        "title": "term.ReadPassword",
+        "text": "`ReadPassword(file os.File) Result<string>` reads one line from a readable terminal without echoing its characters. It consumes the terminating newline and returns the password without that newline. It prints neither a prompt nor a newline, so the caller supplies both when desired. Canonical line input preserves terminal erase processing. EOF succeeds with the bytes read so far, including an empty string.\n\nThe function saves the current settings and restores them after success, EOF, or a read error, and attempts restoration during ordinary panic unwinding. A restoration failure returns an error. If the terminal was already in raw mode, that raw state is restored without changing the state saved for a later `Restore` call.\n\nNonreadable files, nonterminal streams, closed or invalid descriptors, native failures, and unsupported targets return errors. Avoid mixing this direct input with a buffered scanner on the same stream.",
+        "code": "package main;\nimport \"io\";\nimport \"os\";\nimport \"term\";\n\nfunc main() {\n    input := os.Stdin().unwrap();\n    io.Print(\"Password: \").unwrap();\n    password := term.ReadPassword(input).unwrap();\n    io.Println().unwrap();\n    // Use password without printing it.\n}",
+        "note": "The returned password uses ordinary Ocean string storage and is not securely erased."
+      },
+      {
+        "id": "raw-mode",
+        "title": "term.MakeRaw and term.Restore",
+        "text": "`MakeRaw(file os.File) Result<bool>` saves the original settings and enables raw mode. Raw mode disables line buffering, echo, terminal signal-key processing, and output processing on Unix. A read can receive input without waiting for Enter. Windows uses console input mode flags, including virtual-terminal input.\n\n`Restore(file os.File) Result<bool>` restores the settings saved by `MakeRaw`. Both functions return `true` on success and an error on failure. Repeated successful `MakeRaw` calls preserve the first saved settings; one successful `Restore` restores them and clears the saved entry. Calling `Restore` without saved settings returns an error. A failed restoration retains the saved entry so it can be retried.\n\nRestore before closing the file. Copies of an `os.File` share the terminal and its saved settings, and callers must coordinate changes to the same terminal.",
+        "code": "package main;\nimport \"os\";\nimport \"term\";\n\nfunc restore(input os.File) {\n    term.Restore(input).unwrap();\n}\n\nfunc main() {\n    input := os.Stdin().unwrap();\n    term.MakeRaw(input).unwrap();\n    defer restore(input);\n    key := input.Readchunk(1).unwrap();\n    // Process key; the deferred helper restores the terminal on exit.\n}",
+        "note": "Deferred cleanup runs on normal return and ordinary panic unwinding. Forced process termination cannot run cleanup; applications handling termination signals should arrange restoration.",
+        "after": "Defer a helper that calls `Restore`, as shown above. In `defer term.Restore(input).unwrap();`, the receiver expression would call `Restore` immediately and only defer the final `unwrap` call."
+      },
+      {
+        "id": "platforms",
+        "title": "Platform support",
+        "text": "Native bindings use Linux terminal ioctls on x86-64, AArch64, and RISC-V64; Darwin terminal ioctls on x86-64 and AArch64; and Win32 console APIs on x86-64 and AArch64. Other targets return unsupported errors.\n\nRuntime integration tests currently cover Linux pseudoterminals, including resize queries, raw-mode restoration, password echo suppression and line editing, EOF, read failures, pipes, regular files, and invalid or closed descriptors. macOS and Windows bindings have not yet been runtime-tested.",
+        "code": "",
+        "note": "",
+        "links": [
+          {
+            "label": "Browse the term package source ↗",
+            "href": "https://codeberg.org/junglehornet/ocean-src/src/branch/main/term"
+          }
+        ]
+      }
+    ]
+  },
+  {
     "slug": "library/reflect",
     "group": "Standard library",
     "title": "reflect",
@@ -1271,7 +1363,7 @@ export const docs: Doc[] = [
     {
       "id": "library",
       "title": "Standard library",
-      "text": "The `junglehornet/ocean-src` repository on Codeberg contains the Ocean sources for `io`, `os`, and `reflect`. It is maintained separately from the compiler.",
+      "text": "The `junglehornet/ocean-src` repository on Codeberg contains the Ocean sources for `io`, `os`, `term`, and `reflect`. It is maintained separately from the compiler.",
       "code": "",
       "note": "",
       "links": [
@@ -1427,6 +1519,10 @@ export const docs: Doc[] = [
           [
             "`os/args.oc`",
             "Process argument storage, initialization hook, and public Args function."
+          ],
+          [
+            "`term/term.oc`, `term/native.oc`",
+            "Terminal dimensions, detection, password input, raw mode, and native bindings."
           ],
           [
             "`reflect/reflect.oc`",

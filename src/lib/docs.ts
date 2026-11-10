@@ -836,6 +836,171 @@ export const docs: Doc[] = [
     ]
   },
   {
+    "slug": "tutorials/checklist",
+    "group": "Tutorials",
+    "title": "Build a checklist app",
+    "description": "Create an interactive terminal checklist with term/tui: model state, keyboard input, rendering, asynchronous commands, and clean shutdown.",
+    "sections": [
+      {
+        "id": "what-you-will-build",
+        "title": "What you will build",
+        "text": "Build a small terminal app with three checklist items. A > marker shows the current row, [ ] means unchecked, and [x] means checked. Move the selection, toggle an item, and watch the completed count update. Each toggle briefly shows a status message. When you quit, the app restores the previous screen and prints a final count.\n\nThis tutorial assumes you can read basic Ocean structs, functions, and loops. You will learn how a concrete type implements tui.Model, how keyboard messages change state, how View produces the display, and how a tui.Cmd sends a message back asynchronously. There are no third-party packages to install.\n\nThe checklist lives in memory. It starts fresh each time you run it; this example does not save a file. Start with a terminal around 80 columns wide and 16 rows high so the entire view fits.",
+        "code": "",
+        "note": "",
+        "table": {
+          "headers": [
+            "Control",
+            "Action"
+          ],
+          "rows": [
+            [
+              "Up / k",
+              "Move up one item."
+            ],
+            [
+              "Down / j",
+              "Move down one item."
+            ],
+            [
+              "Space / Enter",
+              "Toggle the selected item."
+            ],
+            [
+              "q / Ctrl+C",
+              "Quit and print the final count."
+            ]
+          ]
+        },
+        "links": [
+          {
+            "label": "Review Ocean structs, methods, and interfaces",
+            "href": "/docs/language/types/"
+          },
+          {
+            "label": "term/tui API reference",
+            "href": "/docs/library/term/tui/"
+          }
+        ]
+      },
+      {
+        "id": "setup",
+        "title": "1. Create a project",
+        "text": "Use a current Ocean compiler and matching standard-library sources with term/tui, time, native threads, and interface method dispatch. If you have not installed Ocean, follow Get started first. The library is compiled from source with your app; you do not build it separately.\n\nCreate a directory containing only this program. Run the commands below, then create a file named main.oc inside checklist. The complete source appears later on this page; the intervening steps explain each piece that goes in that file.",
+        "code": "# Shell\nmkdir checklist\ncd checklist\nocean mod init example.com/checklist",
+        "note": "Run this app in a native interactive terminal with stdin and stdout attached to it. term/tui requires native threading and cannot target WebAssembly.",
+        "after": "Keep the package declaration and imports at the top of main.oc. All snippets in this tutorial belong to that one file unless described as a replacement. The complete program later combines them without duplication.",
+        "links": [
+          {
+            "label": "Install the compiler and standard library",
+            "href": "/docs/getting-started/"
+          }
+        ]
+      },
+      {
+        "id": "application-loop",
+        "title": "2. Understand the application loop",
+        "text": "A terminal app describes state and responds to events. The runner calls Init once, renders the current View, then delivers messages to Update. Update returns the next model and an optional command. The runner calls View again when the model changes and redraws changed output.\n\nThese three methods form tui.Model. You implement them on your own struct; Ocean checks that the methods satisfy the interface. You do not need to declare that the struct implements it. Our Checklist uses value receivers, so Update changes its local copy and returns it as the next model. Returning model is what makes those changes visible on the next iteration.\n\nModel methods run serially on the thread calling Run. Commands run on worker threads, and their results rejoin the same message loop. This means your model can stay single-threaded as long as commands use captured inputs and return messages rather than mutating the model directly.",
+        "code": "// Already defined by term/tui; do not redeclare it in main.oc.\ninterface Model {\n    Init() Cmd;\n    Update(message Msg) (Model, Cmd);\n    View() string;\n}",
+        "note": "",
+        "after": "Within the library, Msg is an alias for any and Cmd is an alias for func() Msg. A message can be a library event or a struct you define. A command is a function value that the runner executes for you."
+      },
+      {
+        "id": "state",
+        "title": "3. Define the checklist state",
+        "text": "Start main.oc with these imports and declarations. Item contains a label and a checked flag. Checklist owns a dynamic array of items, a zero-based cursor, and the transient notice. revision identifies the newest notice so an old timer cannot clear a newer one.\n\nclearNoticeMsg is an application-defined message containing the revision to clear. It is a plain struct; because tui.Msg is any, it can travel through the same queue as keyboard and resize events.",
+        "code": "package main;\n\nimport \"io\";\nimport \"term/tui\";\nimport \"time\";\n\nstruct Item { Label string; Done bool; }\nstruct Checklist {\n    items Item[];\n    cursor int;\n    notice string;\n    revision int;\n}\nstruct clearNoticeMsg { revision int; }",
+        "note": "",
+        "after": "The fields not explicitly initialized below receive zero values: Done is false, cursor and revision are 0, and notice is empty. We keep the items in the model rather than in global variables so View and Update describe the same application state."
+      },
+      {
+        "id": "initial-model",
+        "title": "4. Create the initial model and Init",
+        "text": "initialModel constructs three unchecked items. The typed Item[] literal creates a dynamic array. Each Item literal sets Label and lets Done default to false.\n\nInit returns tui.NoCmd because the first screen needs no background work. The runner can render the items immediately. Return the function value tui.NoCmd, without parentheses: Init must return a command, whereas tui.NoCmd() would produce a message.",
+        "code": "func initialModel() Checklist {\n    return Checklist{items: Item[]{\n        Item{Label: \"Learn the model/update/view loop\"},\n        Item{Label: \"Toggle a checklist item\"},\n        Item{Label: \"Write a terminal app in Ocean\"}\n    }};\n}\n\nfunc (model Checklist) Init() tui.Cmd { return tui.NoCmd; }",
+        "note": "",
+        "after": "The same distinction matters when quitting: tui.Quit is a command function value. It eventually returns QuitMsg, which the runner handles as a request to stop."
+      },
+      {
+        "id": "update",
+        "title": "5. Handle keyboard messages in Update",
+        "text": "Update accepts a tui.Msg and returns (tui.Model, tui.Cmd). A type switch separates keyboard input from our timer message and EOF. Unknown messages fall through to the final return, which keeps the model and schedules no effect. That includes WindowSizeMsg: the runner still clips the display to the viewport, even though this small app does not calculate a custom layout.\n\nFor a key event, ignore Alt-modified input, then handle q and Ctrl+C before checking whether the list is empty. An empty checklist must still be able to quit. Navigation checks both ends of the array before moving the cursor, so repeatedly pressing Up or Down stays on the first or last item.\n\nSpace and Enter toggle the selected Done field, set the notice, and increment its revision. The returned Tick command will clear that notice later; the next section explains that part. EOF also requests a normal quit.",
+        "code": "func (model Checklist) Update(message tui.Msg) (tui.Model, tui.Cmd) {\n    switch (event := message.(type)) {\n        case tui.KeyMsg:\n            if (event.Alt) return model, tui.NoCmd;\n            if (event.Key == \"ctrl+c\" || event.Text == \"q\") return model, tui.Quit;\n            if (len(model.items) == 0) return model, tui.NoCmd;\n\n            if (event.Key == \"up\" || event.Text == \"k\") {\n                if (model.cursor > 0) model.cursor--;\n            } else if (event.Key == \"down\" || event.Text == \"j\") {\n                if (model.cursor + 1 < len(model.items)) model.cursor++;\n            } else if (event.Key == \"space\" || event.Key == \"enter\") {\n                index := model.cursor;\n                model.items[index].Done = !model.items[index].Done;\n                model.notice = model.items[index].Done ? \"Item checked.\" : \"Item unchecked.\";\n                model.revision++;\n                return model, tui.Tick(900 * time.Millisecond, clearNoticeMsg{model.revision});\n            }\n        case clearNoticeMsg:\n            if (event.revision == model.revision) model.notice = \"\";\n        case tui.EOFMsg:\n            return model, tui.Quit;\n    }\n    return model, tui.NoCmd;\n}",
+        "note": "In raw mode, Ctrl+C arrives as a KeyMsg. Explicitly return tui.Quit for it; do not use os.Exit to leave the app, because os.Exit skips terminal cleanup.",
+        "after": "The Key field names special keys such as up, down, space, enter, and ctrl+c. Text contains printable input, so q, j, and k are compared with event.Text. The initial cursor is valid and the navigation guards keep it valid. If you later add deletion, also clamp the cursor after removing an item."
+      },
+      {
+        "id": "commands",
+        "title": "6. Clear feedback with an asynchronous command",
+        "text": "The toggle branch returns tui.Tick(900 * time.Millisecond, clearNoticeMsg{model.revision}). Tick waits on a worker, then returns clearNoticeMsg to the application loop. You can keep moving and toggling items while that worker sleeps. Do not call time.Sleep inside Update: that would block input and rendering on the application thread.\n\nEach toggle starts a new timer. Suppose you check one item and toggle another half a second later. The first timer must not erase the second notice early. Each message carries the revision from the toggle that created it; Update clears notice only when the message still matches the model’s current revision.\n\nNo locks or calls to threads.Spawn are needed here. The command receives a snapshot of the revision, and only Update mutates Checklist. The framework starts, tracks, and cleans up the command workers.",
+        "code": "// The toggle branch returns this command.\nreturn model, tui.Tick(900 * time.Millisecond, clearNoticeMsg{model.revision});",
+        "note": "",
+        "after": "time.Millisecond is the number of nanoseconds in a millisecond. Tick accepts a nanosecond duration, as does time.Sleep. Timers are approximate and subject to operating-system scheduling; the app should not depend on an exact delivery instant.",
+        "links": [
+          {
+            "label": "Time units and sleeping",
+            "href": "/docs/library/time/"
+          },
+          {
+            "label": "Command composition and asynchronous I/O",
+            "href": "/docs/library/term/tui/#section-commands"
+          }
+        ]
+      },
+      {
+        "id": "view",
+        "title": "7. Turn the model into a View",
+        "text": "completed counts checked items without changing the model. View builds a string from that state: a title, one row per item, the progress count, the temporary notice, and the controls. The cursor and checkbox markers are separate, so the selection can move without changing a checkmark.\n\nUse a newline between logical rows. The runner handles terminal newline translation and clears content left over from the previous view. An empty notice still occupies its own line, which keeps the help text in the same place while notices appear and disappear.",
+        "code": "func (model Checklist) completed() int {\n    count := 0;\n    for (i := 0; i < len(model.items); i++) {\n        if (model.items[i].Done) count++;\n    }\n    return count;\n}\n\nfunc (model Checklist) View() string {\n    text := \"Ocean checklist\\n\\n\";\n    for (i := 0; i < len(model.items); i++) {\n        cursor := i == model.cursor ? \"> \" : \"  \";\n        checkbox := model.items[i].Done ? \"[x] \" : \"[ ] \";\n        text += cursor + checkbox + model.items[i].Label + \"\\n\";\n    }\n    if (len(model.items) == 0) text += \"No items yet.\\n\";\n    text += \"\\nCompleted: \" + io.Sprint(model.completed()) + \"/\" + io.Sprint(len(model.items));\n    text += \"\\n\" + model.notice;\n    text += \"\\n\\nUp/Down or j/k: move | Space/Enter: toggle | q: quit\";\n    return text;\n}",
+        "note": "",
+        "after": "View returns text; it does not print it. Calling io.Print or io.Println during Run would compete with the renderer. io.Sprint is safe here because it formats an integer into a string without writing to the terminal. The renderer clips lines and columns that do not fit, so a very small terminal may hide some controls."
+      },
+      {
+        "id": "run",
+        "title": "8. Start the program and read the final model",
+        "text": "NewProgram receives the initial Checklist through its Model interface. AltScreen: true puts the app on the terminal’s alternate screen, preserving the shell screen for when the app exits. Keep the Program in one variable; do not copy it after it starts, because it contains synchronization state.\n\nRun blocks until the application quits or encounters an error. Its Result contains the final model interface. unwrap reports an error as a panic; for an app with custom error handling, match the Result instead. The concrete model throughout our app is Checklist, so final.(Checklist) retrieves that final value.\n\nPrinting is safe after Run returns: the runner has restored the terminal and joined its command workers. The summary therefore appears on your normal shell screen rather than disappearing with the alternate screen.",
+        "code": "func main() {\n    program := tui.NewProgram(initialModel(), tui.Options{AltScreen: true});\n    final := program.Run().unwrap();\n    checklist := final.(Checklist);\n    io.Printfln(\"Checked {} of {} items.\", checklist.completed(), len(checklist.items)).unwrap();\n}",
+        "note": "",
+        "after": "Quit uses the framework’s normal shutdown path. Outstanding notice timers are cancelled and joined, and their remaining results do not need to be delivered. In a real I/O command, use bounded operations: arbitrary blocking native I/O can delay worker shutdown."
+      },
+      {
+        "id": "complete-program",
+        "title": "9. Copy the complete program",
+        "text": "Here is the complete main.oc. If you assembled the earlier snippets, use this to compare your file; otherwise copy this whole block into main.oc. Keep only one copy of each declaration. No additional source files or dependencies are required.",
+        "code": "package main;\n\nimport \"io\";\nimport \"term/tui\";\nimport \"time\";\n\nstruct Item { Label string; Done bool; }\nstruct Checklist {\n    items Item[];\n    cursor int;\n    notice string;\n    revision int;\n}\nstruct clearNoticeMsg { revision int; }\n\nfunc initialModel() Checklist {\n    return Checklist{items: Item[]{\n        Item{Label: \"Learn the model/update/view loop\"},\n        Item{Label: \"Toggle a checklist item\"},\n        Item{Label: \"Write a terminal app in Ocean\"}\n    }};\n}\n\nfunc (model Checklist) Init() tui.Cmd { return tui.NoCmd; }\n\nfunc (model Checklist) Update(message tui.Msg) (tui.Model, tui.Cmd) {\n    switch (event := message.(type)) {\n        case tui.KeyMsg:\n            if (event.Alt) return model, tui.NoCmd;\n            if (event.Key == \"ctrl+c\" || event.Text == \"q\") return model, tui.Quit;\n            if (len(model.items) == 0) return model, tui.NoCmd;\n\n            if (event.Key == \"up\" || event.Text == \"k\") {\n                if (model.cursor > 0) model.cursor--;\n            } else if (event.Key == \"down\" || event.Text == \"j\") {\n                if (model.cursor + 1 < len(model.items)) model.cursor++;\n            } else if (event.Key == \"space\" || event.Key == \"enter\") {\n                index := model.cursor;\n                model.items[index].Done = !model.items[index].Done;\n                model.notice = model.items[index].Done ? \"Item checked.\" : \"Item unchecked.\";\n                model.revision++;\n                return model, tui.Tick(900 * time.Millisecond, clearNoticeMsg{model.revision});\n            }\n        case clearNoticeMsg:\n            if (event.revision == model.revision) model.notice = \"\";\n        case tui.EOFMsg:\n            return model, tui.Quit;\n    }\n    return model, tui.NoCmd;\n}\n\nfunc (model Checklist) completed() int {\n    count := 0;\n    for (i := 0; i < len(model.items); i++) {\n        if (model.items[i].Done) count++;\n    }\n    return count;\n}\n\nfunc (model Checklist) View() string {\n    text := \"Ocean checklist\\n\\n\";\n    for (i := 0; i < len(model.items); i++) {\n        cursor := i == model.cursor ? \"> \" : \"  \";\n        checkbox := model.items[i].Done ? \"[x] \" : \"[ ] \";\n        text += cursor + checkbox + model.items[i].Label + \"\\n\";\n    }\n    if (len(model.items) == 0) text += \"No items yet.\\n\";\n    text += \"\\nCompleted: \" + io.Sprint(model.completed()) + \"/\" + io.Sprint(len(model.items));\n    text += \"\\n\" + model.notice;\n    text += \"\\n\\nUp/Down or j/k: move | Space/Enter: toggle | q: quit\";\n    return text;\n}\n\nfunc main() {\n    program := tui.NewProgram(initialModel(), tui.Options{AltScreen: true});\n    final := program.Run().unwrap();\n    checklist := final.(Checklist);\n    io.Printfln(\"Checked {} of {} items.\", checklist.completed(), len(checklist.items)).unwrap();\n}\n",
+        "note": ""
+      },
+      {
+        "id": "try-it",
+        "title": "10. Check, run, and try the controls",
+        "text": "From the checklist directory, check the program, then run it in your terminal. The first command validates the package, imports, and native linking. The second command opens the checklist. To keep an executable, build it after leaving the running app.",
+        "code": "# Shell\nocean check .\nocean run .\n# After quitting the app:\nocean build . -o checklist",
+        "note": "The summary reports the state when Quit is processed. Checkbox changes are not persisted; running the app again starts with 0/3.",
+        "after": "The cursor starts on the first row and Completed reads 0/3. Press Space to check it: the first row becomes [x], progress becomes 1/3, and Item checked. appears briefly. Press Down, then Enter to check the second row. Press k to move back up and Space to uncheck the first row. Progress should be 1/3. Press q; the app restores the shell screen and prints Checked 1 of 3 items. Repeating Up or Down at the ends should never move outside the list."
+      },
+      {
+        "id": "next-steps",
+        "title": "Where to go next",
+        "text": "To change the checklist, edit the labels in initialModel. To add a shortcut, add a branch to Update and keep View free of side effects. To add insertion or deletion, update the array and preserve the invariant that cursor points to an existing item whenever the list is nonempty.\n\nFor a responsive layout, handle WindowSizeMsg and store its Width and Height in the model. For file loading or saving, return a command and handle its result message in Update. Preopen independent streams before Run and close them after Run returns; the existing os registry is not internally synchronized for concurrent stream registration. Do not use command I/O on the terminal’s own stdin or stdout.\n\nIf term/tui cannot be resolved, use matching current compiler and library installations, or point OCEAN_SRC at your library checkout. If Run reports that output is not a terminal, launch it directly in an interactive terminal rather than redirecting stdout. Headless mode is available for model/command tests, but intentionally produces no terminal interface.",
+        "code": "",
+        "note": "",
+        "links": [
+          {
+            "label": "Full term/tui reference",
+            "href": "/docs/library/term/tui/"
+          },
+          {
+            "label": "File and stream APIs",
+            "href": "/docs/library/os/"
+          },
+          {
+            "label": "Methods, values, and interfaces",
+            "href": "/docs/language/types/"
+          }
+        ]
+      }
+    ]
+  },
+  {
     "slug": "tooling/packages",
     "group": "Tooling",
     "title": "Packages & modules",
@@ -1330,7 +1495,8 @@ export const docs: Doc[] = [
         "title": "Model, messages, and commands",
         "text": "Import `term/tui`. Applications implement the Model interface with Init, Update, and View methods. Init returns the first command; Update handles a message and returns the next model and command; View returns the display. All three run serially on the thread calling Run. Value models return updated copies; pointer models mutate state and return their pointer. Interface dispatch invokes the concrete implementation.\n\nMsg is an alias for any, so application-defined values can be messages. Cmd is an alias for func() Msg. Commands execute on native workers and return messages to the application loop. Keep model mutation in Update; capture immutable inputs for commands. Return tui.NoCmd or a zero Cmd when no effect is needed.",
         "code": "interface Model {\n    Init() Cmd;\n    Update(message Msg) (Model, Cmd);\n    View() string;\n}\ntype Msg = any;\ntype Cmd = func() Msg;",
-        "note": ""
+        "note": "",
+        "links": [{ "label": "Tutorial: build a checklist app →", "href": "/docs/tutorials/checklist/" }]
       },
       {
         "id": "example",
@@ -2039,4 +2205,4 @@ export const docs: Doc[] = [
   ]
 }
 ];
-export const groups = ["Start here", "Language guide", "Tooling", "Standard library", "Contribute"];
+export const groups = ["Start here", "Language guide", "Tutorials", "Tooling", "Standard library", "Contribute"];

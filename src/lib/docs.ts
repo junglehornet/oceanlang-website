@@ -787,7 +787,7 @@ export const docs: Doc[] = [
       {
         "id": "syntax",
         "title": "Architecture and platform selection",
-        "text": "Inside a function, write `asm architecture[/platform] { assembly }`. The architecture is required: `x86_64`, `aarch64`, `riscv64`, or `wasm`. An optional platform suffix, `/linux`, `/macos`, or `/windows`, additionally requires that operating system. For example, `asm x86_64/linux` is included only when compiling on an x86-64 Linux host. Braces are required; a trailing semicolon is optional. Unknown selectors are errors. Use `asm wasm { nop }` for WebAssembly; `/js` is rejected because JavaScript always uses the Wasm architecture. Wasm blocks currently support raw instructions without `${variable}` operands. Select this backend with `OCOS=js OCARCH=wasm ocean build -o main.wasm`. This emits a wasm32 module exporting main; a JavaScript WebAssembly host must supply unresolved runtime imports from env. Clang with WebAssembly support and wasm-ld are required. Native system-call I/O has no JavaScript implementation, and ocean run requires a native target.",
+        "text": "Inside a function, write `asm architecture[/platform] { assembly }`. The architecture is required: `x86_64`, `aarch64`, `riscv64`, or `wasm`. An optional platform suffix, `/linux`, `/macos`, or `/windows`, additionally requires that operating system. For example, `asm x86_64/linux` is included only when compiling on an x86-64 Linux host. Braces are required; a trailing semicolon is optional. Unknown selectors are errors. Use `asm wasm { nop }` for WebAssembly; `/js` is rejected because JavaScript always uses the Wasm architecture. Wasm blocks currently support raw instructions without `${variable}` operands. Select this backend with `OCOS=js OCARCH=wasm ocean build -o main.wasm`. This emits a wasm32 module exporting main; a JavaScript WebAssembly host must supply unresolved runtime imports from env. Clang with WebAssembly support and wasm-ld are required. Native system-call I/O has no JavaScript implementation, and ocean run requires a native target. Importing `threads` or `sync` for Wasm fails compilation because their native OS threading backend is unavailable.",
         "code": "func main() {\n    asm x86_64/linux {\n        nop\n    }\n    asm aarch64 {\n        nop\n    }\n}",
         "note": ""
       },
@@ -915,7 +915,7 @@ export const docs: Doc[] = [
       {
         "id": "build-caching",
         "title": "Build caching",
-        "text": "With caching enabled, native builds cache compiled objects per source package and shared program support in `~/.cache/ocean-build`. Native cache keys hash source contents and paths, transitive dependency sources, compiler and native toolchain identity, host, working directory, and environment. Generated LLVM is not an input to native cache lookup. Dependency invalidation is conservative: changing a dependency implementation rebuilds its importers.\n\nCache lookup happens before backend emission. When all objects and link metadata are cached, Ocean skips LLVM generation and native compilation, then relinks against current system libraries. On misses, the backend emits package LLVM files directly; there is no merged-file splitter. Unchanged package objects can be reused when an application starts calling additional package functions. Rebuilding shared support still lowers the graph to collect type and runtime requirements from all packages. Support uses a whole-program source key because it owns globals, startup, concrete specializations, and type-dependent runtime dispatch.\n\nThe --emit-llvm inspection output has a separate source-keyed cache. Parsing and semantic checks still run. The check command validates direct package modules in temporary files. Output filenames, link-only --static, and application arguments do not invalidate native objects. When caching is disabled with `OCEAN_BUILD_CACHE=off` or cannot be initialized, native builds use a single LLVM module and one Clang invocation. Executables lower only reachable functions; libraries retain ordinary functions for downstream callers. An empty usable cache still compiles and stores package objects. Individual missing or corrupt artifacts are treated as cache misses.\n\n`ocean clean --cache` removes the build cache without removing downloaded modules.",
+        "text": "With caching enabled, native builds cache compiled objects per source package and shared program support in `~/.cache/ocean-build`. Native cache keys hash source contents and paths, transitive dependency sources, compiler and native toolchain identity, host, working directory, and environment. Generated LLVM is not an input to native cache lookup. Dependency invalidation is conservative: changing a dependency implementation rebuilds its importers.\n\nCache lookup happens before backend emission. When all objects and link metadata are cached, Ocean skips LLVM generation and native compilation, then relinks against current system libraries. On misses, the backend emits package LLVM files directly; there is no merged-file splitter. Unchanged package objects can be reused when an application starts calling additional package functions. Rebuilding shared support still lowers the graph to collect type and runtime requirements from all packages. Support uses a whole-program source key because it owns globals, startup, concrete specializations, and type-dependent runtime dispatch.\n\nThe --emit-llvm inspection output has a separate source-keyed cache. Parsing and semantic checks still run. Native threading mode is part of package cache keys, so cached functions retain the correct cancellation checkpoints. Threading link metadata persists with the cached support object, including its native runtime; POSIX `-pthread` is added only when needed. The check command validates direct package modules in temporary files. Output filenames, link-only --static, and application arguments do not invalidate native objects. When caching is disabled with `OCEAN_BUILD_CACHE=off` or cannot be initialized, native builds use a single LLVM module and one Clang invocation. Executables lower only reachable functions; libraries retain ordinary functions for downstream callers. An empty usable cache still compiles and stores package objects. Individual missing or corrupt artifacts are treated as cache misses.\n\n`ocean clean --cache` removes the build cache without removing downloaded modules.",
         "code": "ocean clean --cache\n\n# Shell environment overrides:\nOCEAN_BUILD_CACHE=off ocean build .\nOCEAN_BUILD_CACHE=/path/to/cache ocean build .",
         "note": "Cleaning the build cache does not remove downloaded modules. An unavailable build cache falls back to compilation.",
         "after": "Use `OCEAN_BUILD_CACHE=off` to compare behavior without cached artifacts or when investigating a build problem. A custom cache path can keep generated data in a location appropriate to your environment. Disabled or uninitializable caches fall back to single-module compilation; an empty usable cache still populates package objects."
@@ -1128,8 +1128,21 @@ export const docs: Doc[] = [
     "slug": "library/os",
     "group": "Standard library",
     "title": "os",
-    "description": "Read process arguments, access standard streams, and open, read, write, and close native files.",
+    "description": "Read process arguments, exit the process, access standard streams, and work with native files.",
     "sections": [
+      {
+        "id": "exit",
+        "title": "os.Exit",
+        "text": "`Exit(code int)` immediately terminates the entire program, including every native thread, with the supplied exit code. It never returns. Deferred calls, thread joins, and process cleanup do not run, and buffered output is not flushed automatically.\n\nThe value is explicitly converted from Ocean’s 64-bit `int` to the native C `int`. Exit-code interpretation follows the operating system; for example, POSIX shells normally observe the low eight bits. Use `threads.Return()` to end only the calling thread, or return normally from main to wait for workers before cleanup.",
+        "code": "package main;\nimport \"os\";\n\nfunc main() {\n    os.Exit(1);\n}",
+        "note": "",
+        "links": [
+          {
+            "label": "Individual thread termination →",
+            "href": "/docs/library/threads/#section-return"
+          }
+        ]
+      },
       {
         "id": "os-args",
         "title": "os.Args",
@@ -1307,6 +1320,176 @@ export const docs: Doc[] = [
     ]
   },
   {
+    "slug": "library/threads",
+    "group": "Standard library",
+    "title": "threads",
+    "description": "Start native threads from functions, await completion, park and wake threads, and terminate individual threads.",
+    "sections": [
+      {
+        "id": "overview",
+        "title": "Native threads and IDs",
+        "text": "`threads` runs first-class Ocean functions and closures on native OS threads. It does not introduce coroutines or a language scheduler. Main always has ID `0`; worker IDs are positive integers allocated monotonically and never reused. Completed IDs remain valid throughout program execution.\n\nAll identifier-taking functions panic for unknown IDs, including negative IDs. `CurrentID` panics if called from an unregistered native thread. The API uses plain values and panics for misuse or creation failure, rather than returning `Result` values.",
+        "code": "",
+        "note": "",
+        "table": {
+          "headers": [
+            "Signature",
+            "Behavior"
+          ],
+          "rows": [
+            [
+              "`Spawn(job func()) int`",
+              "Start a function or closure and return its thread ID."
+            ],
+            [
+              "`CurrentID() int`",
+              "Return the caller’s ID; main is 0."
+            ],
+            [
+              "`Await(id int)`",
+              "Wait for completion and join the native worker."
+            ],
+            [
+              "`IsDone(id int) bool`",
+              "Report completion, including deferred cleanup."
+            ],
+            [
+              "`Yield()`",
+              "Park the calling thread until a wake arrives while parked."
+            ],
+            [
+              "`Wake(id int)`",
+              "Resume a yielded thread; discard wakes of running or completed threads."
+            ],
+            [
+              "`Return()`",
+              "Run defers and exit only the caller, from any function depth."
+            ],
+            [
+              "`Kill(id int)`",
+              "Request cancellation of the identified thread."
+            ]
+          ]
+        },
+        "links": [
+          {
+            "label": "Mutexes and wait groups →",
+            "href": "/docs/library/sync/"
+          },
+          {
+            "label": "Terminate the whole process with os.Exit →",
+            "href": "/docs/library/os/#section-exit"
+          }
+        ]
+      },
+      {
+        "id": "spawn-await",
+        "title": "threads.Spawn, threads.CurrentID, and threads.Await",
+        "text": "`Spawn(job func()) int` starts a zero-argument function with no result and returns its identifier. Use a closure to supply inputs. An uninitialized function or native creation failure panics. `CurrentID()` identifies the caller.\n\n`Await(id)` blocks until the target completes and joins the native worker. Multiple threads may await the same target, and repeated awaits after completion return normally. Awaiting yourself panics. `IsDone(id)` reports whether the function and its deferred calls have completed; use `Await` when you need to wait rather than poll. A worker can await ID `0`; it completes when main returns or terminates.\n\nClosures capture variables by reference. Protect shared mutation with synchronization and keep borrowed pointers valid until the worker finishes. Passing a closure does not make shared state safe automatically.",
+        "code": "package main;\nimport \"io\";\nimport \"threads\";\n\nfunc worker() {\n    io.Println(\"Worker ID: \", threads.CurrentID()).unwrap();\n}\n\nfunc main() {\n    id := threads.Spawn(worker);\n    threads.Await(id);\n    io.Println(\"Done: \", threads.IsDone(id)).unwrap();\n}",
+        "note": ""
+      },
+      {
+        "id": "yield-wake",
+        "title": "threads.Yield and threads.Wake",
+        "text": "`Yield()` parks the calling OS thread until `Wake(id)` finds it yielded. It is a blocking park, rather than a request to let the OS briefly run another thread. Main can yield and be woken using ID `0`.\n\nA wake only affects a thread that is currently yielded. Waking a running or completed thread does nothing and stores no wake token. In particular, calling `Wake` immediately after `Spawn` can arrive too early. Wake of an invalid identifier panics. The runtime makes publishing the yielded state and entering the wait atomic with respect to Wake.\n\nThe example retries wakes until the worker completes, so an early wake cannot leave it parked forever. This deliberately demonstrates the lossy wake contract; use synchronization to coordinate more complex work.",
+        "code": "package main;\nimport \"threads\";\n\nfunc main() {\n    id := threads.Spawn(func() { threads.Yield(); });\n    for (; !threads.IsDone(id);) {\n        threads.Wake(id);\n    }\n    threads.Await(id);\n}",
+        "note": ""
+      },
+      {
+        "id": "return",
+        "title": "threads.Return",
+        "text": "`Return()` exits only the calling thread, even from a deeply nested helper. It runs that thread’s deferred calls before marking it complete. It does not return to its caller and is not a panic: `recover()` returns `null` during this cleanup and cannot prevent the termination.\n\nReturn in main completes ID `0` while allowing workers to continue. To terminate every thread immediately, use `os.Exit(code)` instead.",
+        "code": "package main;\nimport \"threads\";\nimport \"sync\";\n\nfunc finishHere(done *sync.WaitGroup) {\n    defer done.Done();\n    threads.Return();\n}\n\nfunc main() {\n    done: sync.WaitGroup;\n    done.Add(1);\n    id := threads.Spawn(func() { finishHere(&done); });\n    done.Wait();\n    threads.Await(id);\n}",
+        "note": ""
+      },
+      {
+        "id": "kill",
+        "title": "threads.Kill and cancellation",
+        "text": "`Kill(id)` requests cooperative cancellation and returns without waiting for the target to stop. Follow it with `Await(id)` when completion is required. Killing a completed thread does nothing; killing an unknown ID panics. Killing yourself behaves like Return, and killing ID `0` stops main while letting other workers continue.\n\nCompiler checkpoints cover function entries, loop iterations, and goto jumps. Yield, Await, mutex waits, and wait-group waits also check cancellation. Cancellation runs deferred calls and cannot be recovered as a panic. An unrecovered ordinary panic reports its diagnostic and terminates the whole process.\n\nArbitrary blocking native calls and long inline assembly are not forcibly interrupted: cancellation waits until execution reaches a checkpoint. Deferred cleanup is not interrupted by cancellation. Register deferred Unlock and Done calls immediately after acquiring ownership or starting a task, so termination does not strand locks or unfinished work.",
+        "code": "package main;\nimport \"threads\";\n\nfunc main() {\n    id := threads.Spawn(func() {\n        for (;;) {\n            // CPU work remains cancellable at loop checkpoints.\n        }\n    });\n    threads.Kill(id);\n    threads.Await(id);\n}",
+        "note": ""
+      },
+      {
+        "id": "shutdown",
+        "title": "Main and process shutdown",
+        "text": "Normal return from main marks ID `0` complete, then waits for workers before freeing closure storage and globals. Wake yielded workers before returning from main; otherwise shutdown can remain blocked. Return or Kill of main stops that one thread while workers continue.\n\n`os.Exit(code)` immediately terminates the entire process and all threads without deferred calls or process cleanup. It also skips buffered stream cleanup. Await workers before leaving scopes containing borrowed pointers, regardless of which shutdown path the program uses. Existing mutable library registries, such as shared file state, still require caller synchronization.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "platforms",
+        "title": "Platforms and linking",
+        "text": "The native runtime uses pthreads on Linux and macOS and Win32 threads and synchronization on Windows. Importing `threads` or `sync` for the WebAssembly target fails compilation with an unsupported-threading diagnostic. Use these packages with the matching updated compiler.\n\nThe compiler provides the native entry-point bridge and makes closure allocation safe across threads. Native runtime code is included only when needed and is stored in the cached program support object. POSIX links add `-pthread` only for programs requiring native threading or synchronization, including cache hits. Windows uses Win32 APIs and does not link pthread.\n\nThe regression suite runs native Linux tests and exercises Windows runtime control flow through a POSIX Win32 API shim. Real Windows and macOS hosts are still required to validate those OS ABIs.",
+        "code": "",
+        "note": "",
+        "links": [
+          {
+            "label": "Browse the threads package ↗",
+            "href": "https://codeberg.org/junglehornet/ocean-src/src/branch/main/threads"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "slug": "library/sync",
+    "group": "Standard library",
+    "title": "sync",
+    "description": "Protect shared state with mutexes and wait for groups of native threads to finish.",
+    "sections": [
+      {
+        "id": "overview",
+        "title": "Zero-value synchronization",
+        "text": "`sync` provides `Mutex` and `WaitGroup` for native threads, with APIs similar to Go’s. Both work from zero values and use pointer receivers, so calls on addressable variables automatically borrow their address. Keep each value at a stable address and never copy it after first use.\n\nUse mutexes to protect shared mutable data. Successful locking and waiting make the synchronized writes visible to the waiting thread. Function captures share storage; they do not themselves provide synchronization.\n\nThese types use the same native backend as `threads`: pthreads on Linux/macOS and Win32 synchronization on Windows. Compilation for WebAssembly fails. Native state is initialized lazily and retained until process shutdown.",
+        "code": "",
+        "note": "",
+        "table": {
+          "headers": [
+            "Type",
+            "Methods"
+          ],
+          "rows": [
+            [
+              "`Mutex`",
+              "`Lock()`, `Unlock()`, `TryLock() bool`"
+            ],
+            [
+              "`WaitGroup`",
+              "`Add(delta int)`, `Done()`, `Wait()`"
+            ]
+          ]
+        },
+        "links": [
+          {
+            "label": "Native thread lifecycle →",
+            "href": "/docs/library/threads/"
+          }
+        ]
+      },
+      {
+        "id": "mutex",
+        "title": "sync.Mutex",
+        "text": "`Lock()` blocks until it acquires the mutex. Mutexes are nonrecursive: trying to Lock a mutex you already hold blocks. `TryLock()` returns `true` when it acquires ownership and `false` when ownership is unavailable. A failed TryLock does not grant access to the protected data.\n\n`Unlock()` releases the mutex. Unlocking an unlocked mutex panics. Like Go, a mutex is not tied to an owner thread; another thread may unlock it. There is no fairness guarantee.\n\nRegister a deferred Unlock immediately after acquiring the mutex when Return or Kill can occur. Mutex waits check cancellation and release internal synchronization before unwinding.",
+        "code": "package main;\nimport \"sync\";\n\nfunc main() {\n    mutex: sync.Mutex;\n    mutex.Lock();\n    defer mutex.Unlock();\n    // Access protected state here.\n}",
+        "note": ""
+      },
+      {
+        "id": "wait-group",
+        "title": "sync.WaitGroup",
+        "text": "`Add(delta int)` changes the outstanding work count. Call Add with a positive count before spawning the corresponding work. `Done()` is equivalent to `Add(-1)`. `Wait()` blocks until the count reaches zero and returns immediately if it is already zero. Multiple threads can Wait on the same group.\n\nA negative counter or counter overflow panics. Reuse a group only after all Wait calls from the preceding group have returned; starting new work from zero while those waiters are still returning panics. Adding more work while the counter is positive is supported.\n\nRegister a deferred Done for each task so Return or cancellation can finish its contribution. Wait checks cancellation, removes the cancelled waiter, and runs the thread’s deferred cleanup. A wait group tracks work completion; use `threads.Await` as well when you need to join the native worker.",
+        "code": "package main;\nimport \"io\";\nimport \"sync\";\nimport \"threads\";\n\nfunc main() {\n    mutex: sync.Mutex;\n    done: sync.WaitGroup;\n    total := 0;\n    done.Add(4);\n    ids := int[]{};\n    for (i := 0; i < 4; i++) {\n        id := threads.Spawn(func() {\n            defer done.Done();\n            mutex.Lock();\n            defer mutex.Unlock();\n            total++;\n        });\n        ids.append(id);\n    }\n    done.Wait();\n    for (index, id := range ids) threads.Await(id);\n    io.Println(total).unwrap(); // 4\n}",
+        "note": "",
+        "links": [
+          {
+            "label": "Browse the sync package ↗",
+            "href": "https://codeberg.org/junglehornet/ocean-src/src/branch/main/sync"
+          }
+        ]
+      }
+    ]
+  },
+  {
     "slug": "library/reflect",
     "group": "Standard library",
     "title": "reflect",
@@ -1363,7 +1546,7 @@ export const docs: Doc[] = [
     {
       "id": "library",
       "title": "Standard library",
-      "text": "The `junglehornet/ocean-src` repository on Codeberg contains the Ocean sources for `io`, `os`, `term`, and `reflect`. It is maintained separately from the compiler.",
+      "text": "The `junglehornet/ocean-src` repository on Codeberg contains the Ocean sources for `io`, `os`, `term`, `threads`, `sync`, and `reflect`. It is maintained separately from the compiler.",
       "code": "",
       "note": "",
       "links": [
@@ -1466,6 +1649,10 @@ export const docs: Doc[] = [
             "Splitting emitted LLVM into package units."
           ],
           [
+            "`runtime_threads.c`, `backend_threads.inc`",
+            "POSIX/Win32 threads and synchronization, C ABI bridges, and cooperative cancellation."
+          ],
+          [
             "`build_cache.c`",
             "Generated IR and native-object caching."
           ],
@@ -1525,6 +1712,14 @@ export const docs: Doc[] = [
             "Terminal dimensions, detection, password input, raw mode, and native bindings."
           ],
           [
+            "`threads/threads.oc`, `sync/sync.oc`",
+            "Thread lifecycle, parking, cancellation, mutexes, and wait groups backed by the compiler’s native runtime."
+          ],
+          [
+            "`os/exit.oc`",
+            "Immediate whole-process termination, including all threads."
+          ],
+          [
             "`reflect/reflect.oc`",
             "Field snapshot API backed by restricted compiler primitives."
           ],
@@ -1538,7 +1733,7 @@ export const docs: Doc[] = [
     {
       "id": "relationships",
       "title": "How packages connect to the compiler",
-      "text": "`io` implements printing and formatting in Ocean, including reflected struct formatting, portable float conversion, and platform assembly for stdout. `os` provides process arguments, standard streams, native File values, FileMode, Open, and Close; application code calls `os.Args()` for arguments. `reflect` exposes `Field`, `Fields`, and `IsStruct`.\n\nReflection primitives are available only to the actual `reflect` package under the configured standard-library root. A project-local package with the same name does not gain access. If a library change depends on a new compiler hook or native calling convention, update and test the compiler alongside the library. Merely editing the `.oc` source cannot add support that the compiler does not implement.",
+      "text": "`io` implements printing and formatting in Ocean, including reflected struct formatting, portable float conversion, and platform assembly for stdout. `os` provides process arguments, standard streams, native File values, FileMode, Open, and Close; application code calls `os.Args()` for arguments. `reflect` exposes `Field`, `Fields`, and `IsStruct`. `threads` and `sync` wrap native thread lifecycle and synchronization support. `os.Exit` immediately terminates the whole process. The compiler embeds the cross-platform C runtime, emits function-value and thread-return bridges, and inserts cancellation checkpoints when native threading is used.\n\nReflection primitives are available only to the actual `reflect` package under the configured standard-library root. A project-local package with the same name does not gain access. If a library change depends on a new compiler hook or native calling convention, update and test the compiler alongside the library. Merely editing the `.oc` source cannot add support that the compiler does not implement.",
       "code": "",
       "note": ""
     },

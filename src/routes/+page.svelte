@@ -259,7 +259,7 @@
    <div class="journey-links">
     <a href="/docs/language/variables/"><div><h3>Language guide</h3><p>Variables, functions, collections, types, and memory.</p></div><span>→</span></a>
     <a href="/docs/tooling/cli/"><div><h3>Compiler and packages</h3><p>Command-line usage, modules, and editor configuration.</p></div><span>→</span></a>
-    <a href="/docs/library/io/"><div><h3>Standard library</h3><p>Reference documentation for io, os, and reflect.</p></div><span>→</span></a>
+    <a href="/docs/library/io/"><div><h3>Standard library</h3><p>Reference documentation for io, os, term, threads, sync, and reflect.</p></div><span>→</span></a>
    </div>
   </div>
   <div class="development-note"><h3>Development status</h3><p>Ocean is young and still changing. Expect rough edges and a small standard library. Follow development or contribute on <a href="https://codeberg.org/junglehornet/ocean-c" target="_blank" rel="noopener noreferrer">Codeberg ↗</a>.</p></div>

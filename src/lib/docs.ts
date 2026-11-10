@@ -1320,6 +1320,209 @@ export const docs: Doc[] = [
     ]
   },
   {
+    "slug": "library/term/tui",
+    "group": "Standard library",
+    "title": "term/tui",
+    "description": "Build terminal applications with a Model interface, asynchronous commands, keyboard events, and terminal rendering.",
+    "sections": [
+      {
+        "id": "model",
+        "title": "Model, messages, and commands",
+        "text": "Import `term/tui`. Applications implement the Model interface with Init, Update, and View methods. Init returns the first command; Update handles a message and returns the next model and command; View returns the display. All three run serially on the thread calling Run. Value models return updated copies; pointer models mutate state and return their pointer. Interface dispatch invokes the concrete implementation.\n\nMsg is an alias for any, so application-defined values can be messages. Cmd is an alias for func() Msg. Commands execute on native workers and return messages to the application loop. Keep model mutation in Update; capture immutable inputs for commands. Return tui.NoCmd or a zero Cmd when no effect is needed.",
+        "code": "interface Model {\n    Init() Cmd;\n    Update(message Msg) (Model, Cmd);\n    View() string;\n}\ntype Msg = any;\ntype Cmd = func() Msg;",
+        "note": ""
+      },
+      {
+        "id": "example",
+        "title": "A counter with asynchronous ticks",
+        "text": "Each tick command waits on a worker and returns a message; Update schedules the next tick. The application thread remains available for keyboard and resize events. Ctrl+C is a key message in raw mode, so handle it explicitly.",
+        "code": "package main;\n\nimport \"term/tui\";\nimport \"io\";\nimport \"time\";\n\nstruct counter { count int; }\nstruct tickMsg {}\nfunc (model counter) Init() tui.Cmd { return tui.Tick(time.Second, tickMsg{}); }\nfunc (model counter) Update(message tui.Msg) (tui.Model, tui.Cmd) {\n    switch (event := message.(type)) {\n        case tui.KeyMsg:\n            if (event.Key == \"ctrl+c\" || event.Text == \"q\") return model, tui.Quit;\n            if (event.Key == \"up\" || event.Text == \"+\") model.count++;\n            if (event.Key == \"down\" || event.Text == \"-\") model.count--;\n        case tickMsg:\n            model.count++;\n            return model, tui.Tick(time.Second, tickMsg{});\n        case tui.EOFMsg: return model, tui.Quit;\n    }\n    return model, tui.NoCmd;\n}\nfunc (model counter) View() string {\n    return \"Count: \" + io.Sprint(model.count) + \"\\n↑/↓ or +/- to change · q to quit\";\n}\nfunc main() {\n    program := tui.NewProgram(counter{}, tui.Options{AltScreen: true});\n    program.Run().unwrap();\n}\n",
+        "note": ""
+      },
+      {
+        "id": "program",
+        "title": "Program lifecycle",
+        "text": "NewProgram accepts zero or one Options value. Options{} uses stdin/stdout, raw input, and redraws from the current line. AltScreen: true uses the alternate screen. Headless: true overrides terminal options, disables input, size events, View calls, and rendering. It supports command-only applications and tests without a terminal.\n\nKeep Program at a stable address and never copy it after first use: it contains a mutex. Run is single-use. Send and Quit are safe from other threads; keep Program alive until those callers finish. The queue is unbounded. FIFO order is enqueue order; concurrent commands may complete in any order, and pending messages can be discarded when Quit is processed.",
+        "code": "",
+        "note": "",
+        "table": {
+          "headers": [
+            "API",
+            "Behavior"
+          ],
+          "rows": [
+            [
+              "`NewProgram(model Model, options ...Options) Program`",
+              "Construct a single-use application."
+            ],
+            [
+              "`(*Program).Run() Result<Model>`",
+              "Return the final model, or a terminal/I/O/command-panic error."
+            ],
+            [
+              "`(*Program).Send(message Msg) bool`",
+              "Queue before or during Run; false after shutdown."
+            ],
+            [
+              "`(*Program).Quit() bool`",
+              "Enqueue QuitMsg."
+            ]
+          ]
+        }
+      },
+      {
+        "id": "commands",
+        "title": "Effects, composition, and I/O",
+        "text": "Return command function values from Init or Update; the runner invokes them on workers. Batch runs children concurrently and delivers results as they finish. Sequence executes commands in order and waits for nested batches to finish; it enqueues results without waiting for Update to process them. Empty composites are valid.\n\nTick is a one-shot approximate timer in nanoseconds (for example, time.Second); negative durations panic. Schedule another tick from Update to repeat. The event loop polls approximately every 5ms; Tick uses time.Sleep. Each effect uses a native thread; bound the amount of concurrent work.\n\nRead and Write operate on preopened independent streams. Do not use them on the terminal’s stdin/stdout. Open streams before Run, close them afterward, and use one reader/writer per stream. The existing os file registry is not internally synchronized: concurrent opening/closing/registering files while the terminal loop accesses that registry is unsupported. Custom commands may return application-specific I/O messages. Errors from Read/Write become ErrorMsg, rather than automatically stopping Run.",
+        "code": "",
+        "note": "",
+        "table": {
+          "headers": [
+            "API",
+            "Behavior"
+          ],
+          "rows": [
+            [
+              "`NoCmd` / `zero(tui.Cmd)`",
+              "No effect."
+            ],
+            [
+              "`Quit`",
+              "Command returning QuitMsg."
+            ],
+            [
+              "`Batch(commands ...Cmd) Cmd`",
+              "Concurrent effects."
+            ],
+            [
+              "`Sequence(commands ...Cmd) Cmd`",
+              "Ordered effects, including nested batches."
+            ],
+            [
+              "`Tick(nanoseconds int, message Msg) Cmd`",
+              "One-shot timer."
+            ],
+            [
+              "`Read(file os.File, count int) Cmd`",
+              "Read up to count bytes; count must be positive. Returns ReadMsg or ErrorMsg."
+            ],
+            [
+              "`Write(file os.File, text string) Cmd`",
+              "Write all text. Returns WriteMsg or ErrorMsg."
+            ]
+          ]
+        }
+      },
+      {
+        "id": "messages",
+        "title": "Messages and keyboard input",
+        "text": "KeyMsg.Text contains one printable UTF-8 scalar; Key is rune, or space for ASCII space. Other key names include enter, tab, backspace, esc, up, down, left, right, home, end, insert, delete, pgup, pgdown, shift+tab, f1–f12, and ctrl+a–ctrl+z, with enter/tab/backspace taking precedence. NUL is ctrl+space; remaining control bytes use numeric names such as ctrl+28. Alt prefixes set Alt.\n\nSplit UTF-8 and common CSI/SS3 sequences are buffered. A lone Escape waits about 30ms. Invalid UTF-8 produces replacement characters; unrecognized escape sequences produce unknown keys. Ctrl+C is delivered to Update. Window dimensions are initially queued before Init results and polled approximately every 100ms. EOFMsg stops input polling; Update decides whether to quit.",
+        "code": "",
+        "note": "",
+        "table": {
+          "headers": [
+            "API",
+            "Behavior"
+          ],
+          "rows": [
+            [
+              "`KeyMsg`",
+              "Key string, Text string, Alt bool."
+            ],
+            [
+              "`WindowSizeMsg`",
+              "Width int, Height int in terminal cells."
+            ],
+            [
+              "`ReadMsg`",
+              "Bytes i8[], End bool. Empty successful reads report End; short nonempty reads do not imply EOF."
+            ],
+            [
+              "`WriteMsg`",
+              "Bytes int successfully written."
+            ],
+            [
+              "`ErrorMsg`",
+              "Error string from an I/O command."
+            ],
+            [
+              "`EOFMsg`",
+              "Terminal input ended."
+            ],
+            [
+              "`QuitMsg`",
+              "Stops Run; not delivered to Update."
+            ],
+            [
+              "`NoneMsg`",
+              "Ignored; not delivered to Update."
+            ]
+          ]
+        }
+      },
+      {
+        "id": "cleanup",
+        "title": "Cancellation and terminal restoration",
+        "text": "Run restores raw settings, shows the cursor, leaves the alternate screen, and restores Windows output mode on normal return, returned errors, and ordinary model-panic unwinding. Model panics propagate; command panics are recovered and become Run errors. OS signal termination, os.Exit, native crashes, and SIGKILL bypass deferred cleanup. Only one program may own the terminal at a time; do not read stdin or write stdout elsewhere during Run.\n\nShutdown requests cooperative cancellation and joins outstanding commands, including nested batch children. Command defers run. Arbitrary blocking native I/O cannot be forcibly interrupted and may delay Run returning until the call finishes. Terminal restoration occurs before worker joins. Use bounded I/O or application-specific cancellation. External threads and resources remain the caller’s responsibility; do not Return/Kill the Run thread. Pointers in messages still borrow their pointees.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "rendering",
+        "title": "Rendering and platforms",
+        "text": "Views redraw when changed or resized, clear stale content, translate newlines to CRLF, and accept SGR styles/colors. Other control characters are filtered. Excess lines/columns are clipped; the last column is reserved to avoid autowrap. Common combining/East Asian widths are estimated. Full grapheme/emoji layout, mouse input, bracketed paste, focus events, and extended keyboard protocols are not implemented.\n\nThe library uses term and native threads on Linux x86-64/AArch64/RISC-V64, macOS x86-64/AArch64, and Windows x86-64/AArch64 with a VT-capable console. Windows VT output mode is enabled and restored. WebAssembly compilation fails because native threading is required. Linux PTY behavior is tested; real Windows/macOS execution still needs host validation. Use a compiler with interface method dispatch and native thread support.",
+        "code": "",
+        "note": ""
+      }
+    ]
+  },
+  {
+    "slug": "library/time",
+    "group": "Standard library",
+    "title": "time",
+    "description": "Sleep the calling thread using nanosecond durations and integer time units.",
+    "sections": [
+      {
+        "id": "sleep",
+        "title": "Sleep in nanoseconds",
+        "text": "Import `time`. Sleep(nanoseconds int) blocks the calling thread for the requested duration, subject to native timer resolution and scheduling. Zero and negative durations return immediately. Durations use ordinary signed 64-bit integer arithmetic; ensure multiplication fits in int.\n\nOcean currently has no const declaration. The unit names below are exported int bindings used as constants by convention; do not assign to them.",
+        "code": "package main;\nimport \"time\";\n\nfunc main() {\n    time.Sleep(10 * time.Millisecond);\n    time.Sleep(500 * time.Microsecond);\n}",
+        "note": "Nanosecond input does not promise nanosecond precision.",
+        "table": {
+          "headers": [
+            "Unit",
+            "Nanoseconds (int)"
+          ],
+          "rows": [
+            [
+              "`Nanosecond`",
+              "1"
+            ],
+            [
+              "`Microsecond`",
+              "1,000"
+            ],
+            [
+              "`Millisecond`",
+              "1,000,000"
+            ],
+            [
+              "`Second`",
+              "1,000,000,000"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "native",
+        "title": "Native waiting and cancellation",
+        "text": "Linux x86-64/AArch64/RISC-V64 use nanosleep system calls; macOS x86-64/AArch64 use nanosleep. Interrupted POSIX sleeps resume with the remaining duration. Windows x86-64/AArch64 use relative waitable timers, rounding requests upward to 100ns timer units. Hardware timer resolution and scheduling can extend waits; the implementation does not busy-wait or change system timer resolution. Native failures panic.\n\nLong waits are split into native waits of at most 50ms, allowing cooperative cancellation at compiler checkpoints in threaded applications. time does not import threads or sync and does not add a pthread dependency on its own. Positive sleeps panic on unsupported platforms, including Wasm. Nonpositive sleeps always return immediately. Linux timing and signal interruption are tested; real macOS/Windows execution still needs host validation.",
+        "code": "",
+        "note": "The term/tui event loop and Tick commands use time.Sleep internally."
+      }
+    ]
+  },
+  {
     "slug": "library/threads",
     "group": "Standard library",
     "title": "threads",
@@ -1546,7 +1749,7 @@ export const docs: Doc[] = [
     {
       "id": "library",
       "title": "Standard library",
-      "text": "The `junglehornet/ocean-src` repository on Codeberg contains the Ocean sources for `io`, `os`, `term`, `threads`, `sync`, and `reflect`. It is maintained separately from the compiler.",
+      "text": "The `junglehornet/ocean-src` repository on Codeberg contains the Ocean sources for `io`, `os`, `term`, `term/tui`, `time`, `threads`, `sync`, and `reflect`. It is maintained separately from the compiler.",
       "code": "",
       "note": "",
       "links": [

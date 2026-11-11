@@ -1762,6 +1762,41 @@ export const docs: Doc[] = [
     ]
   },
   {
+    "slug": "library/mem",
+    "group": "Standard library",
+    "title": "mem",
+    "description": "Copy raw bytes between memory regions, including overlapping regions.",
+    "sections": [
+      {
+        "id": "copy",
+        "title": "Copy bytes",
+        "text": "Import `mem` and call `mem.Copy(src, dest, bytes)` to copy exactly `bytes` bytes from source to destination. The signature is `func Copy(src *void, dest *void, bytes int)`. Source comes first and destination second. Copy returns no value and does not allocate memory.\n\nPass pointers to addressable values or array elements, or use an array’s `.data` to point to its payload. The count is in bytes; an array’s `.size` gives its payload size in bytes, while `len` counts elements.",
+        "code": "package main;\nimport \"mem\";\n\nfunc main() {\n    source: u8[4] = {0, 128, 255, 42};\n    dest: u8[6] = {9, 9, 9, 9, 9, 9};\n    mem.Copy(source.data, &dest[1], source.size);\n    if (dest != u8[6]{9, 0, 128, 255, 42, 9}) {\n        panic \"unexpected copied bytes\";\n    }\n}",
+        "note": ""
+      },
+      {
+        "id": "overlap",
+        "title": "Overlapping regions",
+        "text": "Source and destination may overlap in either direction. The result is the same as copying the requested source bytes through a temporary snapshot, without allocating that snapshot. Bytes outside the destination region stay unchanged. Copying a region onto itself leaves it unchanged.",
+        "code": "package main;\nimport \"mem\";\n\nfunc main() {\n    data: u8[4] = {1, 2, 3, 4};\n    mem.Copy(&data[0], &data[1], 3);\n    // data is now {1, 1, 2, 3}.\n    mem.Copy(&data[1], &data[0], 3);\n    // data is now {1, 2, 3, 3}.\n    if (data != u8[4]{1, 2, 3, 3}) {\n        panic \"unexpected overlapping copy\";\n    }\n}",
+        "note": ""
+      },
+      {
+        "id": "storage-and-counts",
+        "title": "Storage and byte counts",
+        "text": "The caller must provide readable source storage and writable destination storage for the requested byte count. Copy does not check allocation boundaries or extend the destination. Both regions must remain valid throughout the call.\n\nA zero byte count accesses neither pointer, so `mem.Copy(null, null, 0)` is valid. A negative byte count panics, including when both pointers are equal.\n\nCopy transfers raw bytes without copying ownership or adjusting references. Use ordinary Ocean assignment to copy values containing owned strings, dynamic arrays, maps, or other owned data.",
+        "code": "",
+        "note": "",
+        "links": [
+          {
+            "label": "Memory and ownership",
+            "href": "/docs/language/memory/"
+          }
+        ]
+      }
+    ]
+  },
+  {
     "slug": "library/time",
     "group": "Standard library",
     "title": "time",

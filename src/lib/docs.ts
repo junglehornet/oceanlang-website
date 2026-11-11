@@ -45,7 +45,7 @@ export const docs: Doc[] = [
       {
         "id": "first-program",
         "title": "Write your first program",
-        "text": "Create a new directory, run `ocean mod init example.com/hello` there to create its `ocean.mod` module file, and save the following as `main.oc`. Every Ocean file starts with a package declaration. A root package named `main` can build into an executable.\n\nUse a directory containing only this example while you are getting started. Ocean compiles packages rather than isolated files, so an unrelated `.oc` file in the same directory will also be part of the program. You can call the new directory `hello`; the source filename itself does not determine the package name.\n\n`package main;` identifies an executable package. `import \"io\";` makes the standard output functions available in this file. When the executable starts, Ocean calls `main`, whose body prints the message and then finishes.",
+        "text": "Create a new directory, run `ocean mod init example.com/hello` there to create its `ocean.mod` module file, and save the following as `main.oc`. Every Ocean file starts with a package declaration. A root package named `main` can build into an executable.\n\nUse a directory containing only this example while you are getting started. Ocean compiles packages rather than isolated files, so an unrelated ordinary `.oc` file in the same directory will also be part of the program. Files ending in `_test.oc` are reserved for `ocean test` and excluded from normal builds. You can call the new directory `hello`; the source filename itself does not determine the package name.\n\n`package main;` identifies an executable package. `import \"io\";` makes the standard output functions available in this file. When the executable starts, Ocean calls `main`, whose body prints the message and then finishes.",
         "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    io.Println(\"Hello, Ocean!\");\n}",
         "note": "",
         "after": "Save the file before running the next commands. The string is enclosed in double quotes, the call ends with a semicolon, and the closing brace ends the function body. This program should print `Hello, Ocean!` followed by a newline."
@@ -265,7 +265,7 @@ export const docs: Doc[] = [
       {
         "id": "function-literals-and-closures",
         "title": "Function literals and closures",
-        "text": "Function literals use `func(parameters) resultType { body }`; omit the result type for a function with no results. Their types use the same signature without the body: `func(int) int`, `func()`, or `func() (int, bool)`. When assigning a function value to a function-typed variable or passing it to a function-typed parameter, the source function and destination function type must agree on each parameter type, each result type, and whether the final parameter is variadic. This includes numeric storage widths: `func(i32) int` and `func(int) int` are different types. Parameter names are not part of that comparison. Functions can be assigned to variables, passed as arguments, returned, stored in structs or arrays, and boxed in `any`. A named function can also be passed or assigned as a value. For a generic function, choose its concrete type arguments first: `identity<int>` selects the integer version of `identity`. Function literals can use outer generic type parameters but cannot declare their own type parameters.\n\nClosures capture variables by reference. The surrounding function and sibling closures share updates to a captured variable. Returning a closure preserves its captures; copying a function value shares the same environment. Separate calls to a factory create independent environments. Each iteration gets separate storage for range bindings and variables declared inside the loop body. A variable declared once in the loop initializer is instead shared across iterations, so closures capturing that variable see updates to the same storage. Captured storage currently lives until process exit, when the runtime releases its owned values. Raw pointer and buffer captures still borrow their pointees and backing storage.\n\nUse a type alias for arrays of functions, such as `type Callback = func() int;` then `callbacks: Callback[3];`. In `func() int[3]`, the `[3]` is part of the function’s result type: it describes a function returning a three-element integer array. To declare a three-element array of functions, use the `Callback` alias followed by `[3]`. An uninitialized function value panics if called. Function values use an Ocean closure ABI and cannot be passed directly as native C function pointers. Calls through interface methods dispatch to the boxed concrete receiver. Bound method values remain unsupported.",
+        "text": "Function literals use `func(parameters) resultType { body }`; omit the result type for a function with no results. Their types use the same signature without the body: `func(int) int`, `func()`, or `func() (int, bool)`. When assigning a function value to a function-typed variable or passing it to a function-typed parameter, the source function and destination function type must agree on each parameter type, each result type, and whether the final parameter is variadic. This includes numeric storage widths: `func(i32) int` and `func(int) int` are different types. Parameter names are not part of that comparison. Functions can be assigned to variables, passed as arguments, returned, stored in structs or arrays, and boxed in `any`. A named function can also be passed or assigned as a value. For a generic function, choose its concrete type arguments first: `identity<int>` selects the integer version of `identity`. Function literals can use outer generic type parameters but cannot declare their own type parameters.\n\nClosures capture variables by reference. The surrounding function and sibling closures share updates to a captured variable. Returning a closure preserves its captures; copying a function value shares the same environment. Separate calls to a factory create independent environments. Each iteration gets separate storage for range bindings and variables declared inside the loop body. A variable declared once in the loop initializer is instead shared across iterations, so closures capturing that variable see updates to the same storage. Captured storage currently lives until process exit, when the runtime releases its owned values. Raw pointer and buffer captures still borrow their pointees and backing storage.\n\nUse a type alias for arrays of functions, such as `type Callback = func() int;` then `callbacks: Callback[3];`. In `func() int[3]`, the `[3]` is part of the function’s result type: it describes a function returning a three-element integer array. To declare a three-element array of functions, use the `Callback` alias followed by `[3]`. An uninitialized function value panics if called. Function values use an Ocean closure ABI and cannot be passed directly as native C function pointers. Calls through interface methods dispatch to the boxed concrete receiver. Interface values, including `any`, default to `null` and accept null assignment, arguments, and returns. Check `iface == null` or `iface != null`. Calling a method on a null interface panics and supports ordinary `defer` and `recover`. Bound method values remain unsupported.",
         "after": "The function literal reads `offset` from its surrounding scope. Here `map` calls the function with `1` and `2`, so the returned array contains `4` and `5`, and `main` returns `9`. A later change to a captured variable would be visible to the closure because the capture refers to the variable’s storage.",
         "code": "func map(data array<int>, closure func(int) int) int[] {\n    result := make(int[]);\n    for (i := 0; i < len(data); i++) {\n        result.append(closure(data[i]));\n    }\n    return result;\n}\n\nfunc main() int {\n    offset := 3;\n    values := int[2]{1, 2};\n    mapped := map(values, func(n int) int { return n + offset; });\n    return mapped[0] + mapped[1]; // 9\n}",
         "note": "Captured variables are shared by reference and remain alive until process exit in the current runtime."
@@ -451,6 +451,14 @@ export const docs: Doc[] = [
         "after": "Calling `first` with a nonempty sized array returns its first element and `true`. An empty sized array gives `0` and `false`. The caller should use the flag to decide whether the value represents an actual element."
       },
       {
+        "id": "slicing",
+        "title": "Slicing",
+        "text": "Slicing uses `items[start:end]`, including `start` and excluding `end`. `items[:]`, `items[:2]`, `items[2:]`, and `items[1:2]` are supported; omitted bounds default to zero and the collection length. For example, `{0, 1, 2, 3, 4}[1:3]` produces `int[]{1, 2}`. Arrays, dynamic arrays, and typed buffers produce a new dynamic array; strings produce a new string (sliced by byte). The result owns only the selected elements, with no shared backing storage, and nested owned values are copied recursively. Empty slices are valid. Bounds must satisfy `0 <= start <= end <= length`; invalid bounds report a runtime bounds error. Unsized raw buffer pointers require an explicit end bound and the caller must ensure that the selected memory is valid.",
+        "code": "values := {0, 1, 2, 3, 4};\npart := values[1:3]; // int[]{1, 2}\nall := values[:];\nfirst := values[:2];\nlast := values[2:];\nword := \"ocean\"[1:4]; // \"cea\"",
+        "note": "A slice copies its selected elements. Its backing storage does not retain the unselected prefix or suffix.",
+        "after": "Changing part[0] leaves values[1] unchanged. A string slice is a string; an array or buffer slice is a dynamic array."
+      },
+      {
         "id": "raw-storage",
         "title": "Raw storage",
         "text": "Use `buffer<T>[]` for an unsized raw view. Buffers do not provide ordinary bounds checks, and a raw buffer parameter does not retain a length recorded by the caller’s declaration. Pass the number of valid elements as a separate argument. Sized buffer declarations pad omitted literal elements with `zero` values.\n\nAn unsized buffer is a view of raw memory. Passing one to a function shares that memory instead of granting the function an independent length-aware collection. The separate count is part of the function’s contract: it must not exceed the valid memory available through the view.\n\nThis representation is useful for C interfaces and small low-level routines. It also removes checks that an ordinary array would provide, so keep the pointer and count together in the surrounding code. For example, the declaration `data: buffer<int>[8];` makes the length eight available in the declaring scope. Passing `data` to a `buffer<int>[]` parameter does not make that length available inside the called function.",
@@ -555,6 +563,13 @@ export const docs: Doc[] = [
         "text": "Enums accept type parameters and constraints, using the same syntax as structs. Specify arguments when constructing a value, such as Result<int>.value(42). Supplying type arguments chooses a concrete version of the generic enum, called a specialization. `Result<int>` carries integer successes and `Result<string>` carries string successes. They are different types, so a variable declared as one cannot receive a value of the other. Payloads may use type parameters in tuple and record fields, and enums may be nested or passed through generic functions.",
         "code": "enum Result<T> {\n    value(T),\n    error(string),\n}\n\nfunc unwrap<T>(result Result<T>, fallback T) T {\n    match (result) {\n        Result.value(v) => return v;\n        Result.error(_) => return fallback;\n    }\n    return fallback;\n}\n\nfunc main() int {\n    result := Result<int>.value(42);\n    value := result.(Result<int>.value);\n    return unwrap<int>(result, 0);\n}",
         "note": "When inspecting an existing enum value, an extraction or match pattern may omit type arguments: `result.(Result.value)` and `Result.value(v)` use the arguments already carried by `result`’s type. If the pattern writes explicit arguments, they must agree with those of the inspected value. Constructing a new enum value has no source value from which to obtain those arguments, so write them explicitly, as in `Result<int>.value(42)`. Enum declarations and specializations require angle brackets, such as Result<T> and Result<int>. Constraints such as enum Counter<T ~int> restrict specializations."
+      },
+      {
+        "id": "builtin-optional",
+        "title": "Built-in Optional<T>",
+        "text": "Optional<T> is available without imports or standard-library files. Its variants are Optional<T>.Some(value), carrying one T, and Optional<T>.None, carrying no payload. None equals null; assigning null selects None. Uninitialized optionals and zero(Optional<T>) are None. Some(null) remains present when T is nullable. Normal enum equality, extraction, match, and ownership apply. A user declaration can shadow Optional.",
+        "code": "func main() int {\n    value: Optional<int> = null;\n    if (value != null) return 1;\n    value = Optional<int>.Some(42);\n    match (value) {\n        Optional.Some(n) => return n - 42;\n        Optional.None => return 2;\n    }\n    return 3;\n}",
+        "note": "Use explicit type arguments when constructing values; extraction and match may infer arguments from the inspected value."
       },
       {
         "id": "builtin-result",
@@ -685,7 +700,7 @@ export const docs: Doc[] = [
       {
         "id": "explicit-null",
         "title": "Null is explicit",
-        "text": "Ocean’s `null` is pointer-only and uses a reserved marker. It differs from the zero address stored in a default-initialized Ocean pointer or returned as a null pointer by a C API. Always initialize an optional link explicitly to `null`. Dereferencing explicit `null` traps.\n\nThis is an important Ocean-specific distinction. An uninitialized pointer receives a zero-address default, and `zero(*T)` constructs that same default. Explicit `null` is a separate reserved marker used for pointer-only absence. Testing for one does not test for the other.\n\nChoose and initialize the representation your code expects. For linked structures whose terminator is checked with `== null`, write `null` into every terminating link explicitly. At a C boundary, an address returned as a C null pointer is a zero address instead, so compare it against `zero(*T)` for the appropriate pointer type, such as `zero(*void)` for a C `void*` result.",
+        "text": "Ocean’s `null` supports pointers, interfaces, and `Optional<T>`. For pointers it uses a reserved marker. It differs from the zero address stored in a default-initialized Ocean pointer or returned as a null pointer by a C API. Always initialize an optional link explicitly to `null`. Dereferencing explicit `null` traps.\n\nThis is an important Ocean-specific distinction. An uninitialized pointer receives a zero-address default, and `zero(*T)` constructs that same default. Explicit `null` is a separate reserved marker used for explicit pointer absence. Testing for one does not test for the other.\n\nChoose and initialize the representation your code expects. For linked structures whose terminator is checked with `== null`, write `null` into every terminating link explicitly. At a C boundary, an address returned as a C null pointer is a zero address instead, so compare it against `zero(*T)` for the appropriate pointer type, such as `zero(*void)` for a C `void*` result.",
         "code": "struct Node {\n    value int;\n    next *Node;\n}\n\n// Inside a function:\nnext: *Node = null;\nif (next == null) {\n    // No next node.\n}",
         "note": "",
         "after": "The explicit initializer makes the condition true. Omitting `= null` would produce a different default value. Neither explicit null nor a zero-address pointer refers to a valid object that can be dereferenced."
@@ -1009,7 +1024,7 @@ export const docs: Doc[] = [
       {
         "id": "package-directories",
         "title": "A directory is a package",
-        "text": "All .oc files in a directory belong to the same package and must declare the same name. Functions, types, and globals are shared across those files. An import is available only in the file that declares it, even though top-level functions, types, and variables are shared across files in the package. Only the root `package main` gets an executable entry point.\n\nPackage membership comes from the source directory and declaration, not the source filename. Splitting a large program into several `.oc` files in one directory does not require imports between those files. Their global-level declarations share the package scope, while local declarations still follow ordinary lexical scope.\n\nImports are different: each file must import the packages whose qualified names it uses. Importing `io` in `main.oc` does not make `io` available in a sibling source file. Extern declarations are also file-scoped and must be repeated in each file that calls them.",
+        "text": "All ordinary .oc files in a directory belong to the same package and must declare the same name. Files ending in `_test.oc` are excluded from normal builds. During `ocean test`, same-package tests can use private declarations, and a separate `<package_name>_test` package can share the directory for public API tests. Functions, types, and globals are shared across those files. An import is available only in the file that declares it, even though top-level functions, types, and variables are shared across files in the package. Only the root `package main` gets an executable entry point.\n\nPackage membership comes from the source directory and declaration, not the source filename. Splitting a large program into several `.oc` files in one directory does not require imports between those files. Their global-level declarations share the package scope, while local declarations still follow ordinary lexical scope.\n\nImports are different: each file must import the packages whose qualified names it uses. Importing `io` in `main.oc` does not make `io` available in a sibling source file. Extern declarations are also file-scoped and must be repeated in each file that calls them.",
         "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    io.Println(\"One directory, one package.\");\n}",
         "note": "",
         "after": "This file belongs to the executable package `main`. A sibling file beginning with `package main;` can declare helpers that `main` calls directly. A sibling file declaring a different package would cause a package-name error."
@@ -1025,7 +1040,7 @@ export const docs: Doc[] = [
       {
         "id": "import-packages",
         "title": "Import packages",
-        "text": "Import qualifiers default to the declared package name. Aliases use `as`. Names beginning with a Unicode uppercase letter are exported; lowercase declarations are private to their package. Import cycles and mixed package names are errors.\n\nThe import path identifies where a package is found; the qualifier used in expressions normally comes from that package’s `package` declaration. An alias changes the local qualifier for this file, which is useful when two imports would otherwise have the same package name.\n\nExporting is name-based. A capitalized function such as `Answer` is available to importers, while lowercase helpers remain accessible only inside their own package. The rule also applies to types, global variables, receiver methods, aliases, and interfaces. Dot imports expose exported names directly; blank imports do not introduce a normal qualifier.",
+        "text": "Import qualifiers default to the declared package name. Aliases use `as`. Names beginning with a Unicode uppercase letter are exported; lowercase declarations are private to their package. Import cycles and mixed package names are errors, except for the separate external test package allowed in `_test.oc` files.\n\nThe import path identifies where a package is found; the qualifier used in expressions normally comes from that package’s `package` declaration. An alias changes the local qualifier for this file, which is useful when two imports would otherwise have the same package name.\n\nExporting is name-based. A capitalized function such as `Answer` is available to importers, while lowercase helpers remain accessible only inside their own package. The rule also applies to types, global variables, receiver methods, aliases, and interfaces. Dot imports expose exported names directly; blank imports do not introduce a normal qualifier.",
         "code": "import \"github.com/yourname/project/helper\";\nimport \"github.com/example/collections/list\" as lists;\n\n// Inside a function:\nanswer := helper.Answer();",
         "note": "See the Packages & imports language guide for dot imports, blank imports, visibility, and receiver ownership.",
         "links": [{ "label": "Packages & imports", "href": "/docs/language/packages-and-imports/" }],
@@ -1055,9 +1070,22 @@ export const docs: Doc[] = [
     "description": "Build native executables, inspect LLVM, and understand the build cache.",
     "sections": [
       {
+        "id": "unit-tests",
+        "title": "Run unit tests",
+        "text": "ocean test runs Test functions accepting *testing.T from files ending in _test.oc. Internal tests share private declarations; external <package_name>_test files import only the public API. Ordinary build, run, and check commands exclude all test files. See the unit testing guide for subtests, fatal failures, cleanup, tang reports, JSON, and saved results.",
+        "code": "ocean test .\nocean test . --json\nocean test . --outfile results.txt --jsonfile results.jsonl",
+        "note": "",
+        "links": [
+          {
+            "label": "Unit testing guide",
+            "href": "/docs/tooling/testing/"
+          }
+        ]
+      },
+      {
         "id": "everyday-commands",
         "title": "Everyday commands",
-        "text": "The executable names `ocean` and `ocean-c` accept the same commands and options; the examples use `ocean`. A location can be a file or directory. A file selects its containing package. Non-`main` packages `build` into native object files and cannot be `run` directly.\n\nUse `check` for validation, `run` for a development execution, and `build` when you want a persistent output artifact. All three operate on a package and its imports. Passing `main.oc` is a convenient way to locate that package; it does not exclude other `.oc` files in the directory.\n\nUse `--static` (short form `-s`) with `build` or `run` to statically link the executable, including the temporary executable used by `run`. This passes `-static` to Clang and requires host support and static system libraries, including static libffi when needed. Missing static libraries or unsupported targets cause a linker error. Static linking is rejected for non-main packages and cannot be combined with `check`, `--check`, or `--emit-llvm`. When eligible cached object files already exist, Ocean reuses them and performs the link step again with static linking enabled. Use `--` to pass a literal `--static` or `-s` argument to a running program.\n\nNative builds emit separate LLVM modules directly for each source package and shared program support. Packages compile all ordinary functions so a cached object can serve different callers. Executable linking discards unused functions and data using function/data sections. Library builds preserve callable functions for downstream users. The --emit-llvm option retains a single merged inspection file containing reachable executable functions.\n\nWithout `-o`, an executable uses the package directory’s name as its output name. A non-main package produces an object file instead. Choosing an explicit output path is useful in scripts because it avoids depending on a directory’s current name.",
+        "text": "The executable names `ocean` and `ocean-c` accept the same commands and options; the examples use `ocean`. A location can be a file or directory. A file selects its containing package. Non-`main` packages `build` into native object files and cannot be `run` directly.\n\nUse `check` for validation, `run` for a development execution, and `build` when you want a persistent output artifact. All three operate on a package and its imports. Passing `main.oc` is a convenient way to locate that package; it does not exclude other ordinary `.oc` files in the directory. Files ending in `_test.oc` are always excluded from `build`, `run`, and `check`; use `ocean test` to compile and execute them.\n\nUse `--static` (short form `-s`) with `build` or `run` to statically link the executable, including the temporary executable used by `run`. This passes `-static` to Clang and requires host support and static system libraries, including static libffi when needed. Missing static libraries or unsupported targets cause a linker error. Static linking is rejected for non-main packages and cannot be combined with `check`, `--check`, or `--emit-llvm`. When eligible cached object files already exist, Ocean reuses them and performs the link step again with static linking enabled. Use `--` to pass a literal `--static` or `-s` argument to a running program.\n\nNative builds emit separate LLVM modules directly for each source package and shared program support. Packages compile all ordinary functions so a cached object can serve different callers. Executable linking discards unused functions and data using function/data sections. Library builds preserve callable functions for downstream users. The --emit-llvm option retains a single merged inspection file containing reachable executable functions.\n\nWithout `-o`, an executable uses the package directory’s name as its output name. A non-main package produces an object file instead. Choosing an explicit output path is useful in scripts because it avoids depending on a directory’s current name.",
         "code": "ocean check .\nocean run .\nocean run ./main.oc argument\nocean run . -- --static\nocean build . -o application\nocean build --static . -o application\nocean run -s .\nocean build ./library -o library.o",
         "note": "",
         "after": "The `--` separator makes the boundary between compiler options and program arguments clear. For a directly built executable, invoke its output path through the shell. `run` rejects a package that is not an executable root named `main`."
@@ -1090,6 +1118,97 @@ export const docs: Doc[] = [
         "title": "Diagnostics",
         "text": "Errors and warnings include a filename, line, column, excerpt, and caret. Terminal output uses color; redirected output is plain. `NO_COLOR` disables color, and `CLICOLOR_FORCE=1` forces it. Build failures preserve previous output files.\n\nRead diagnostics from the first reported location and use the excerpt to identify the expression involved. A syntax error can cause several later messages, so fixing the earliest issue and checking again is often more useful than addressing every downstream message separately. Source paths are relative to the compiler’s working directory where possible.\n\nWarnings do not prevent a successful compilation. One example is a value-returning function that reaches its end and implicitly returns a zero value. Prefer an explicit return so the intended behavior is visible. Native compiler and linker failures also make the build unsuccessful.\n\nIf a previous output file exists, a failed build preserves it. Be careful when running an old executable after a failed rebuild: its presence is not evidence that the latest source compiled successfully.",
         "code": "",
+        "note": ""
+      }
+    ]
+  },
+  {
+    "slug": "tooling/testing",
+    "group": "Tooling",
+    "title": "Unit tests",
+    "description": "Run package tests with testing.T, private or external test packages, tang reports, JSON events, and saved results.",
+    "sections": [
+      {
+        "id": "discover",
+        "title": "Write and run a test",
+        "text": "Name test files with the `_test.oc` suffix. Declare top-level functions whose names start with `Test`, each accepting exactly one `*testing.T` argument and returning no values. Run `ocean test` in the package directory, or pass one directory or Ocean file selecting a package. Test files are always excluded from ordinary `build`, `run`, and `check` commands and are never included in normal executables or library objects. Tests from imported dependencies do not run as part of the target suite.",
+        "code": "// arithmetic_test.oc\npackage arithmetic;\nimport \"testing\";\n\nfunc TestAdd(t *testing.T) {\n    if (Add(2, 3) != 5) t.Errorf(\"wanted {}, got {}\", 5, Add(2, 3));\n    t.Run(\"negative\", func(t *testing.T) {\n        if (Add(-2, -3) != -5) t.Fatal(\"negative addition failed\");\n    });\n}",
+        "note": "Use Ocean’s {} formatting placeholders in Errorf, Fatalf, Logf, and Skipf. Test names and filenames are case-sensitive.",
+        "after": "The compiler generates a temporary test executable. Its entry point replaces the production main only for this test build. The command preserves the current working directory and removes the executable when finished. An empty suite succeeds."
+      },
+      {
+        "id": "packages",
+        "title": "Internal and external test packages",
+        "text": "A test file declaring the same package as the ordinary source files shares their private functions, types, and variables. A test file declaring `<package_name>_test` belongs to a separate external package in the same directory. External tests import the package under test and can access only its exported API. Both kinds run in the same suite. The external package is allowed only in `_test.oc` files.",
+        "code": "// api_test.oc, beside package arithmetic\npackage arithmetic_test;\nimport \"example.com/project/arithmetic\";\nimport \"testing\";\n\nfunc TestPublicAPI(t *testing.T) {\n    if (arithmetic.Add(2, 3) != 5) t.Error(\"unexpected sum\");\n}",
+        "note": "Replace the example import with your module’s package path."
+      },
+      {
+        "id": "t",
+        "title": "The testing.T interface",
+        "text": "Error and Errorf mark the current test as failed and continue. Fatal, Fatalf, and FailNow stop the current test while running its defers and cleanup callbacks. Run waits for a named subtest and returns false if it failed; child failure also fails the parent. Tests and subtests run sequentially using managed native threads, so a fatal failure can stop one test while later tests continue. A panic fails the current test and also allows the suite to continue.",
+        "code": "func TestResources(t *testing.T) {\n    t.Cleanup(func() { /* release resources */ });\n    t.Logf(\"running {}\", t.Name());\n    t.Run(\"optional\", func(t *testing.T) { t.Skip(\"not available yet\"); });\n}",
+        "note": "Helper is accepted but currently does not change source-location reporting. There is no parallel-test or benchmark API yet. Fatal and skip methods must be called on the test’s own thread.",
+        "table": {
+          "headers": [
+            "API",
+            "Behavior"
+          ],
+          "rows": [
+            [
+              "Run(name, callback) bool",
+              "Run a subtest and wait for its cleanup."
+            ],
+            [
+              "Error / Errorf / Fail",
+              "Mark failure and continue."
+            ],
+            [
+              "Fatal / Fatalf / FailNow",
+              "Fail and stop the calling test."
+            ],
+            [
+              "Failed / Skipped / Name",
+              "Inspect the test state or slash-separated name."
+            ],
+            [
+              "Log / Logf",
+              "Attach output to the test."
+            ],
+            [
+              "Skip / Skipf / SkipNow",
+              "Stop and mark skipped unless already failed."
+            ],
+            [
+              "Cleanup(func())",
+              "Register cleanup in reverse execution order."
+            ],
+            [
+              "Helper()",
+              "Accepted for assertion helper compatibility."
+            ]
+          ]
+        }
+      },
+      {
+        "id": "reports",
+        "title": "Tang reports and JSON events",
+        "text": "The default plain report follows tang’s static Messages and Summary layout, with nested failure and skip details, aligned package and suite counts, and ✓ / ✗ / ∅ / ∑ / ⏱ columns. Passing details are hidden unless -v or --include-passed is set. Both tests and subtests count toward the totals. NO_COLOR, including an empty value, and --no-color disable automatic terminal color. Redirected output and saved text reports are plain.",
+        "code": "ocean test .\nocean test . -v\nocean test . --outfile results.txt\nocean test . --jsonfile results.jsonl\nocean test . --json --outfile results.txt --jsonfile results.jsonl\nocean test . --timeout 30s\nNO_COLOR=1 ocean test .",
+        "note": "-o aliases --outfile. --hide-skipped hides skipped-test details while retaining their counts. Timeout defaults to 10m; use 0 to disable it. Durations accept ms, s, m, or a number of seconds.",
+        "after": "--json emits one JSON event per line on stdout; --jsonfile saves the same event stream while keeping the human report. Events contain Time, Action, Package, Elapsed in seconds, and optional Test and Output fields. Actions are start, run, output, pass, fail, and skip. Arbitrary stdout and stderr are wrapped in package output events, keeping JSON valid. The final package result reflects the actual process exit, including timeouts. Exit status is zero for success and nonzero for test, compile, reporting, timeout, or process failures.",
+        "links": [
+          {
+            "label": "Tang test reporting",
+            "href": "https://github.com/ansel1/tang"
+          }
+        ]
+      },
+      {
+        "id": "requirements",
+        "title": "Compiler and library requirements",
+        "text": "Use the matching testing, threads, and sync packages from the standard-library checkout selected by OCEAN_SRC, or install the updated compiler and source library together. Test execution requires a native host target; WebAssembly tests are not supported. The test executable is built separately without reusing normal package object-cache entries. One package location is accepted per invocation.",
+        "code": "ocean test --help",
         "note": ""
       }
     ]

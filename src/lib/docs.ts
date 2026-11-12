@@ -1146,9 +1146,9 @@ export const docs: Doc[] = [
       {
         "id": "t",
         "title": "The testing.T interface",
-        "text": "Error and Errorf mark the current test as failed and continue. Fatal, Fatalf, and FailNow stop the current test while running its defers and cleanup callbacks. Run waits for a named subtest and returns false if it failed; child failure also fails the parent. Tests and subtests run sequentially using managed native threads, so a fatal failure can stop one test while later tests continue. A panic fails the current test and also allows the suite to continue.",
-        "code": "func TestResources(t *testing.T) {\n    t.Cleanup(func() { /* release resources */ });\n    t.Logf(\"running {}\", t.Name());\n    t.Run(\"optional\", func(t *testing.T) { t.Skip(\"not available yet\"); });\n}",
-        "note": "Helper is accepted but currently does not change source-location reporting. There is no parallel-test or benchmark API yet. Fatal and skip methods must be called on the test’s own thread.",
+        "text": "Error and Errorf mark the current test as failed and continue. Fatal, Fatalf, and FailNow stop the current test while running its defers and cleanup callbacks. Run waits for a named subtest and returns false if it failed. Parallel(name, callback) starts an asynchronous subtest on an additional OS thread and returns immediately. A parent waits for all async children before its Cleanup callbacks and final status; child failure propagates to the parent. Ordinary defers run as the body exits, so use Cleanup for resources shared with async children. Subtests cannot start during cleanup.\n\nTop-level Test functions run through a shared queue using up to 16 OS worker threads by default, capped by the number of tests. Each worker pulls another function after finishing. Use -t N to set a positive worker count or --single-threaded for one top-level worker. Workers stopped by Fatal or skips are joined and replaced while pending tests remain. A recovered panic fails its test and permits the worker to continue.\n\nThe worker count does not cap subtest threads. Parallel can start more than 16 children even with --single-threaded or -t 1. This API is an async version of Run, rather than Go’s no-argument Parallel marker. testing.T synchronizes its flags, cleanup registrations, and subtest bookkeeping; synchronize shared fixtures in test code.",
+        "code": "func TestConcurrent(t *testing.T) {\n    t.Cleanup(func() { /* release resources after all children */ });\n    t.Parallel(\"first\", func(t *testing.T) { /* first check */ });\n    t.Parallel(\"second\", func(t *testing.T) { /* second check */ });\n    // Both children run without blocking this body.\n}",
+        "note": "Helper is accepted but currently does not change source-location reporting. There is no benchmark API yet. Fatal and skip methods must be called on the test’s own thread.",
         "table": {
           "headers": [
             "API",
@@ -1158,6 +1158,10 @@ export const docs: Doc[] = [
             [
               "Run(name, callback) bool",
               "Run a subtest and wait for its cleanup."
+            ],
+            [
+              "Parallel(name, callback)",
+              "Start an async subtest outside the top-level worker limit."
             ],
             [
               "Error / Errorf / Fail",
@@ -1192,10 +1196,10 @@ export const docs: Doc[] = [
       },
       {
         "id": "reports",
-        "title": "Tang reports and JSON events",
-        "text": "The default plain report follows tang’s static Messages and Summary layout, with nested failure and skip details, aligned package and suite counts, and ✓ / ✗ / ∅ / ∑ / ⏱ columns. Passing details are hidden unless -v or --include-passed is set. Both tests and subtests count toward the totals. NO_COLOR, including an empty value, and --no-color disable automatic terminal color. Redirected output and saved text reports are plain.",
-        "code": "ocean test .\nocean test . -v\nocean test . --outfile results.txt\nocean test . --jsonfile results.jsonl\nocean test . --json --outfile results.txt --jsonfile results.jsonl\nocean test . --timeout 30s\nNO_COLOR=1 ocean test .",
-        "note": "-o aliases --outfile. --hide-skipped hides skipped-test details while retaining their counts. Timeout defaults to 10m; use 0 to disable it. Durations accept ms, s, m, or a number of seconds.",
+        "title": "Live Tang display and JSON events",
+        "text": "Interactive terminals show a live tang-style TUI implemented with the standard term/tui library. It displays running and completed tests, nested subtests, recent output, status counts (▶ / ⏸ / ✓ / ✗ / ∅ / ∑), and elapsed time. The display handles resizing. Use arrow keys or Page Up/Page Down to scroll, f or End to resume following recent tests, and q or Ctrl+C to stop the suite.\n\nAfter execution, the live view is cleared and the final report follows tang’s static Messages and Summary layout, with nested failure and skip details, aligned package and suite counts, and ✓ / ✗ / ∅ / ∑ / ⏱ columns. Passing details in the final report are hidden unless -v or --include-passed is set. NO_COLOR, including an empty value, and --no-color disable colors while retaining live redraws. Redirected output and saved text reports stay plain.",
+        "code": "ocean test .\nocean test . -v\nocean test . -t 4\nocean test . --single-threaded\nocean test . --notty\nocean test . --outfile results.txt\nocean test . --jsonfile results.jsonl\nocean test . --json --outfile results.txt --jsonfile results.jsonl\nocean test . --timeout 30s\nNO_COLOR=1 ocean test .",
+        "note": "-o aliases --outfile. --hide-skipped hides skipped-test details while retaining their counts. Timeout defaults to 10m; use 0 to disable it. Durations accept ms, s, m, or a number of seconds. --notty (also -notty or --no-tui) disables the live display. It is also disabled for --json, nonterminal stdin/stdout, and TERM=dumb. Tests receive EOF on stdin while the TUI owns keyboard input; use --notty for tests that read stdin.",
         "after": "--json emits one JSON event per line on stdout; --jsonfile saves the same event stream while keeping the human report. Events contain Time, Action, Package, Elapsed in seconds, and optional Test and Output fields. Actions are start, run, output, pass, fail, and skip. Arbitrary stdout and stderr are wrapped in package output events, keeping JSON valid. The final package result reflects the actual process exit, including timeouts. Exit status is zero for success and nonzero for test, compile, reporting, timeout, or process failures.",
         "links": [
           {
@@ -1207,7 +1211,7 @@ export const docs: Doc[] = [
       {
         "id": "requirements",
         "title": "Compiler and library requirements",
-        "text": "Use the matching testing, threads, and sync packages from the standard-library checkout selected by OCEAN_SRC, or install the updated compiler and source library together. Test execution requires a native host target; WebAssembly tests are not supported. The test executable is built separately without reusing normal package object-cache entries. One package location is accepted per invocation.",
+        "text": "Use the matching testing, threads, and sync packages from the standard-library checkout selected by OCEAN_SRC, or install the updated compiler and source library together. Test execution requires a native host target; WebAssembly tests are not supported. The test executable is built separately without reusing normal package object-cache entries. One package location is accepted per invocation. The live frontend is shipped as source in testing/internal/display and uses the matching term/tui package. It is compiled and cached separately from the test binary. If the frontend is unavailable, Ocean falls back to the final text report.",
         "code": "ocean test --help",
         "note": ""
       }

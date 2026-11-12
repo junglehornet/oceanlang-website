@@ -567,14 +567,14 @@ export const docs: Doc[] = [
       {
         "id": "builtin-optional",
         "title": "Built-in Optional<T>",
-        "text": "Optional<T> is available without imports or standard-library files. Its variants are Optional<T>.Some(value), carrying one T, and Optional<T>.None, carrying no payload. None equals null; assigning null selects None. Uninitialized optionals and zero(Optional<T>) are None. Some(null) remains present when T is nullable. Normal enum equality, extraction, match, and ownership apply. A user declaration can shadow Optional.",
+        "text": "Optional<T> is available without imports or standard-library files. Its variants are Optional<T>.Some(value), carrying one T, and Optional<T>.None, carrying no payload. None equals null; assigning null selects None. Uninitialized optionals and zero(Optional<T>) are None. Some(null) remains present when T is nullable. The hasValue() bool method returns true for Some (including Some(null)) and false for None. The unwrap() T method returns the Some payload (including null) and panics on None, attributed to the caller. Returned payloads follow normal value-copy and ownership rules. Normal enum equality, extraction, match, and ownership apply. A user declaration can shadow Optional.",
         "code": "func main() int {\n    value: Optional<int> = null;\n    if (value != null) return 1;\n    value = Optional<int>.Some(42);\n    match (value) {\n        Optional.Some(n) => return n - 42;\n        Optional.None => return 2;\n    }\n    return 3;\n}",
         "note": "Use explicit type arguments when constructing values; extraction and match may infer arguments from the inspected value."
       },
       {
         "id": "builtin-result",
         "title": "Built-in Result<T>",
-        "text": "Result<T> is available without imports or standard-library files. It is the compiler-owned equivalent of enum Result<T> { value(T), error(string) }. The built-in `value` and `error` variants, and its lowercase helper methods such as `unwrap`, are available to every package. This is a specific property of the compiler-provided `Result`; user-defined lowercase declarations still follow normal package privacy rules.\n\nConstruct Result<int>.value(42) or Result<int>.error(\"invalid number\"). Normal comparisons, extraction and match work with these variants. A user-declared Result may shadow the name and remains a distinct type. Payloads and fallbacks retain ordinary value ownership.",
+        "text": "Result<T> is available without imports or standard-library files. It is the compiler-owned equivalent of enum Result<T> { value(T), error(string) }. The built-in `value` and `error` variants, and its lowercase helper methods such as `unwrap`, are available to every package. This is a specific property of the compiler-provided `Result`; user-defined lowercase declarations still follow normal package privacy rules.\n\nConstruct Result<int>.value(42) or Result<int>.error(\"invalid number\"). Normal comparisons, extraction and match work with these variants. A user-declared Result may shadow the name and remains a distinct type. Payloads and fallbacks retain ordinary value ownership. result.error() returns the stored error string and panics on a successful value; Result<T>.error(message) still constructs an error variant. This built-in accessor is an exception to the rule against methods sharing enum variant names.",
         "code": "func main() int {\n    success := Result<int>.value(42);\n    failure := Result<int>.error(\"invalid number\");\n    if (failure.unwrapOrZero() != 0) return 1;\n    return success.unwrap() + failure.unwrapOrElse(0);\n}",
         "note": "",
         "table": {
@@ -584,6 +584,16 @@ export const docs: Doc[] = [
             "error case"
           ],
           "rows": [
+            [
+              "`hasError() bool`",
+              "Return false",
+              "Return true"
+            ],
+            [
+              "`error() string`",
+              "Panic",
+              "Return stored error string"
+            ],
             [
               "`unwrap() T`",
               "Return payload",

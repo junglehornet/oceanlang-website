@@ -196,7 +196,7 @@
     <a class="button primary" href="/docs/getting-started/">Get started <span>→</span></a>
     <a class="button secondary" href="/docs/">Documentation</a>
    </div>
-   <a class="hero-source" href="https://codeberg.org/junglehornet/ocean-c" target="_blank" rel="noopener noreferrer">View the compiler source ↗</a>
+   <a class="hero-source" href="https://github.com/junglehornet/ocean-c" target="_blank" rel="noopener noreferrer">View the compiler source ↗</a>
   </div>
   <div class="hero-code">
    <div class="editor-top"><span>hello.oc</span><span class="editor-language">Ocean</span></div>
@@ -262,7 +262,7 @@
     <a href="/docs/library/io/"><div><h3>Standard library</h3><p>Reference documentation for io, os, term, term/tui, time, threads, sync, and reflect.</p></div><span>→</span></a>
    </div>
   </div>
-  <div class="development-note"><h3>Development status</h3><p>Ocean is young and still changing. Expect rough edges and a small standard library. Follow development or contribute on <a href="https://codeberg.org/junglehornet/ocean-c" target="_blank" rel="noopener noreferrer">Codeberg ↗</a>.</p></div>
+  <div class="development-note"><h3>Development status</h3><p>Ocean is young and still changing. Expect rough edges and a small standard library. Follow development or contribute on <a href="https://github.com/junglehornet/ocean-c" target="_blank" rel="noopener noreferrer">GitHub ↗</a>.</p></div>
  </section>
 </main>
 

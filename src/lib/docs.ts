@@ -10,19 +10,19 @@ export const docs: Doc[] = [
       {
         "id": "agent-skill",
         "title": "Code with an agent skill",
-        "text": "The compiler repository on Codeberg includes an Ocean agent skill covering current syntax, tooling, packages, modules, and the build system. Download the latest SKILL.md from the main branch and save it as ocean/SKILL.md in your coding agent’s skills directory. Use your agent’s skill installation instructions to choose that directory.",
+        "text": "The compiler repository on GitHub includes an Ocean agent skill covering current syntax, tooling, packages, modules, and the build system. Download the latest SKILL.md from the main branch and save it as ocean/SKILL.md in your coding agent’s skills directory. Use your agent’s skill installation instructions to choose that directory.",
         "code": "",
         "note": "The download follows the main branch, so download it again when updating your compiler to keep the guidance current.",
         "links": [
-          { "label": "View the Ocean agent skill in the compiler repository", "href": "https://codeberg.org/junglehornet/ocean-c/src/branch/main/skills/ocean/SKILL.md" },
-          { "label": "Download the latest SKILL.md", "href": "https://codeberg.org/junglehornet/ocean-c/raw/branch/main/skills/ocean/SKILL.md" }
+          { "label": "View the Ocean agent skill in the compiler repository", "href": "https://github.com/junglehornet/ocean-c/blob/main/skills/ocean/SKILL.md" },
+          { "label": "Download the latest SKILL.md", "href": "https://raw.githubusercontent.com/junglehornet/ocean-c/main/skills/ocean/SKILL.md" }
         ]
       },
       {
         "id": "source",
         "title": "Get the source",
         "text": "Ocean currently builds from source. Clone the compiler repository, `ocean-c`, and the standard-library repository, `ocean-src`, into the same parent directory. This makes them sibling directories, so the compiler’s build configuration can find the library at `../ocean-src`. Git is also used when Ocean downloads external modules.\n\nThe standard library consists of `.oc` source files. Keep its package directories intact; Ocean compiles the packages your program imports when it builds that program. You do not need to build the library separately.\n\nThe commands below create both checkouts and then enter `ocean-c`. The installation section explains how CMake copies the compiler into `<prefix>/bin` and the library into `<prefix>/src`. For a manual system-wide installation, `/usr/local/lib/ocean` can serve as that prefix: place the executable in `/usr/local/lib/ocean/bin`, copy the library source tree into `/usr/local/lib/ocean/src`, and add the `bin` directory to PATH. The compiler normally finds the library relative to its own executable, not relative to your program’s working directory.",
-        "code": "git clone https://codeberg.org/junglehornet/ocean-c.git\ngit clone https://codeberg.org/junglehornet/ocean-src.git\ncd ocean-c",
+        "code": "git clone https://github.com/junglehornet/ocean-c.git\ngit clone https://github.com/junglehornet/ocean-src.git\ncd ocean-c",
         "note": "",
         "after": "The remaining build commands run inside `ocean-c`. Once Ocean is installed, your own programs can live in any other directory; they do not need to be placed inside either source repository."
       },
@@ -1611,7 +1611,7 @@ export const docs: Doc[] = [
         "links": [
           {
             "label": "Browse the term package source ↗",
-            "href": "https://codeberg.org/junglehornet/ocean-src/src/branch/main/term"
+            "href": "https://github.com/junglehornet/ocean-src/tree/main/term"
           }
         ]
       }
@@ -1963,7 +1963,7 @@ export const docs: Doc[] = [
         "links": [
           {
             "label": "Browse the threads package ↗",
-            "href": "https://codeberg.org/junglehornet/ocean-src/src/branch/main/threads"
+            "href": "https://github.com/junglehornet/ocean-src/tree/main/threads"
           }
         ]
       }
@@ -2020,7 +2020,7 @@ export const docs: Doc[] = [
         "links": [
           {
             "label": "Browse the sync package ↗",
-            "href": "https://codeberg.org/junglehornet/ocean-src/src/branch/main/sync"
+            "href": "https://github.com/junglehornet/ocean-src/tree/main/sync"
           }
         ]
       }
@@ -2073,13 +2073,13 @@ export const docs: Doc[] = [
     {
       "id": "compiler",
       "title": "Ocean compiler",
-      "text": "The compiler, command-line tools, and language server live in `junglehornet/ocean-c` on Codeberg. The repository also contains compiler tests and implementation notes.",
+      "text": "The compiler, command-line tools, and language server live in `junglehornet/ocean-c` on GitHub. The repository also contains compiler tests and implementation notes.",
       "code": "",
       "note": "",
       "links": [
         {
           "label": "Browse the compiler source ↗",
-          "href": "https://codeberg.org/junglehornet/ocean-c"
+          "href": "https://github.com/junglehornet/ocean-c"
         },
         {
           "label": "Building and compiler architecture →",
@@ -2090,13 +2090,13 @@ export const docs: Doc[] = [
     {
       "id": "library",
       "title": "Standard library",
-      "text": "The `junglehornet/ocean-src` repository on Codeberg contains the Ocean sources for `io`, `os`, `term`, `term/tui`, `time`, `threads`, `sync`, and `reflect`. It is maintained separately from the compiler.",
+      "text": "The `junglehornet/ocean-src` repository on GitHub contains the Ocean sources for `io`, `os`, `term`, `term/tui`, `time`, `threads`, `sync`, and `reflect`. It is maintained separately from the compiler.",
       "code": "",
       "note": "",
       "links": [
         {
           "label": "Browse the standard library ↗",
-          "href": "https://codeberg.org/junglehornet/ocean-src"
+          "href": "https://github.com/junglehornet/ocean-src"
         },
         {
           "label": "Standard library repository guide →",
@@ -2133,7 +2133,7 @@ export const docs: Doc[] = [
       "id": "checkout",
       "title": "Check out the sources",
       "text": "Install Git, CMake 4.2 or newer, a C23-capable C compiler, Clang, and libffi development headers and libraries. Python 3 is required when tests are enabled, as they are by default. CMake selects Clang unless you choose another C compiler.\n\nClone the two repositories into sibling directories. The standard library is Ocean source loaded by the compiler; it does not have a separate native build.",
-      "code": "git clone https://codeberg.org/junglehornet/ocean-c.git\ngit clone https://codeberg.org/junglehornet/ocean-src.git\ncd ocean-c",
+      "code": "git clone https://github.com/junglehornet/ocean-c.git\ngit clone https://github.com/junglehornet/ocean-src.git\ncd ocean-c",
       "note": ""
     },
     {
@@ -2285,7 +2285,7 @@ export const docs: Doc[] = [
       "id": "development",
       "title": "Work directly from the checkout",
       "text": "Clone the library beside the compiler and point `OCEAN_SRC` at its absolute path. Run these commands from the directory containing both repositories, after building the compiler. Replace `/path/to/example` with a package that exercises your change.",
-      "code": "git clone https://codeberg.org/junglehornet/ocean-src.git\n# With a built sibling ocean-c checkout:\nOCEAN_SRC=\"$PWD/ocean-src\" ./ocean-c/build/ocean check /path/to/example\nOCEAN_SRC=\"$PWD/ocean-src\" ./ocean-c/build/ocean run /path/to/example",
+      "code": "git clone https://github.com/junglehornet/ocean-src.git\n# With a built sibling ocean-c checkout:\nOCEAN_SRC=\"$PWD/ocean-src\" ./ocean-c/build/ocean check /path/to/example\nOCEAN_SRC=\"$PWD/ocean-src\" ./ocean-c/build/ocean run /path/to/example",
       "note": "",
       "after": "There is no separate library compilation or npm/CMake build in this repository. Ocean compiles the required library packages with the importing program. For installation, preserve the package directories under the installed `src/` root."
     },

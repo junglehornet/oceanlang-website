@@ -477,7 +477,7 @@ export const docs: Doc[] = [
       {
         "id": "struct-values",
         "title": "Struct values",
-        "text": "Fields use name type ordering. Struct literals can initialize fields positionally or by name. Struct assignment copies the fields, including owned nested values. Explicit pointers preserve shared references.\n\nA struct groups named fields into one value. Each field has its own type, and field access uses a dot, such as `point.x`. The type declaration describes the layout; a struct literal constructs a value using that description. A function can return the struct just as it returns an integer or string.\n\nPositional literals follow field declaration order. Keyed literals name the fields they initialize and are useful when a struct has several similar-looking values. Omitted fields receive defaults. Assigning a struct to another variable creates a separate struct value. Owned fields such as strings, arrays, and maps are copied recursively. A pointer field copies its address, so its target remains shared.",
+        "text": "Fields use name type ordering. A field may share its name with its type, as in Header Header. Recursive owning array or map layouts are unsupported and produce a compiler diagnostic; use explicit pointers for recursive ownership. Struct literals can initialize fields positionally or by name. Struct assignment copies the fields, including owned nested values. Explicit pointers preserve shared references.\n\nA struct groups named fields into one value. Each field has its own type, and field access uses a dot, such as `point.x`. The type declaration describes the layout; a struct literal constructs a value using that description. A function can return the struct just as it returns an integer or string.\n\nPositional literals follow field declaration order. Keyed literals name the fields they initialize and are useful when a struct has several similar-looking values. Omitted fields receive defaults. Assigning a struct to another variable creates a separate struct value. Owned fields such as strings, arrays, and maps are copied recursively. A pointer field copies its address, so its target remains shared.",
         "code": "struct Point {\n    x float;\n    y float;\n}\n\nfunc origin() Point {\n    return Point{0.0, 0.0};\n}",
         "note": "",
         "after": "The returned `Point` has both coordinates set to `0.0`. A caller can store it with `point := origin();` and update `point.x`. Assigning it to another variable makes a separate struct value, so changing a coordinate in that copy does not change `point`."
@@ -784,6 +784,13 @@ export const docs: Doc[] = [
         "code": "extern int write(i32 fd, buffer<i8>[] data, int count);\n\nfunc main() {\n    text := \"Hello from native code!\\n\";\n    extern.write(1, text.data, len(text));\n}",
         "note": "",
         "after": "This example uses the host’s `write` function to send a byte count to file descriptor one, standard output. `text.data` supplies a raw byte buffer, not the header of an Ocean string. The example signature is for the current tested host and should be checked when targeting another native ABI."
+      },
+      {
+        "id": "native-null",
+        "title": "Pass C NULL explicitly",
+        "text": "Ocean’s explicit null marker is distinct from a zero-address pointer. When a C API requires NULL, pass zero(*void), or a zero-address pointer of the required type. Do not pass Ocean null as C NULL. Check pointers returned by C with a numeric zero comparison, such as (handle -> int) == 0. This matters for optional native parameters and failed pointer-returning operations.",
+        "code": "",
+        "note": ""
       },
       {
         "id": "strings-at-a-c-boundary",
@@ -1422,6 +1429,114 @@ export const docs: Doc[] = [
     ]
   },
 
+  {
+    "slug": "library/encoding/json",
+    "group": "Standard library",
+    "title": "encoding/json",
+    "description": "Encode JSON, decode dynamic objects and arrays, and preserve exact number text.",
+    "sections": [
+      {
+        "id": "marshal",
+        "title": "Encode JSON",
+        "text": "`Marshal(value any) Result<string>` encodes null, booleans, strings, all integer widths, finite floats, structs, `map[string]any`, `mixed any[]`, and dynamic `int[]`, `string[]`, `float[]`, and `bool[]` arrays. Object keys are sorted. Failures use Ocean Result values.",
+        "code": "package main;\nimport \"encoding/json\";\nimport \"io\";\nstruct Person { Name string; Age int; }\nfunc main() {\n    text := json.Marshal(Person{\"Ada\", 36}).unwrap();\n    value := json.Unmarshal(text).unwrap();\n    object := value.(map[string]any);\n    age := object[\"Age\"].(json.Number).Int64().unwrap();\n    io.Println(text, \" age=\", age).unwrap();\n}",
+        "note": "Use the matching compiler with the interface-array mutation, boxed-array ownership, and enum tuple boxing fixes."
+      },
+      {
+        "id": "unmarshal",
+        "title": "Decode JSON",
+        "text": "`Unmarshal(text string) Result<any>` returns null, bool, string, `json.Number`, `mixed any[]`, or `map[string]any`. Use type assertions to access decoded values. Duplicate object keys keep the last value. `Valid(text string) bool` validates an entire document. Numbers preserve their original text instead of becoming float64. `Number { Text string }` supplies `Int64() Result<int>` and `Float64() Result<float>` for checked conversion.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "validation",
+        "title": "Validation and API differences",
+        "text": "The parser validates JSON number grammar, UTF-8, escape sequences, Unicode surrogate pairs, trailing data, and a 128-level nesting limit. Marshal rejects NaN, infinities, unsupported types, and invalid Number text. Strings and JSON input/output use Ocean strings.\n\nUnlike Go, Unmarshal returns a dynamic value rather than filling a destination pointer. Struct encoding includes all declared fields, including private fields, using exact field names. Tags, custom marshalers, struct decoding, fixed arrays, pointers, streaming, indentation, and concrete maps such as map[string]int are not implemented. Use map[string]any for dynamic objects. `io.FormatFloat(value float) string` supplies locale-independent round-trip float text.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "tests",
+        "title": "Run the tests",
+        "text": "The tests cover scalar and container encoding, round trips, number precision, invalid documents, nesting, UTF-8, and Unicode escapes.",
+        "code": "OCEAN_SRC=/path/to/ocean-src ocean test /path/to/ocean-src/encoding/json",
+        "note": ""
+      }
+    ]
+  },
+  {
+    "slug": "library/net/http",
+    "group": "Standard library",
+    "title": "net/http",
+    "description": "Make blocking HTTP/1.1 requests with Go-inspired request, response, and header APIs.",
+    "sections": [
+      {
+        "id": "client",
+        "title": "Send a request",
+        "text": "`Get(url string)` and `Post(url, contentType, body string)` return `Result<Response>`. `NewRequest(method, url, body string)` returns `Result<Request>`; an empty method means GET. Client methods `Do(request Request)`, `Get(url string)`, and `Post(url, contentType, body string)` also return `Result<Response>`. Bodies are owned strings, so no Body.Close call is required.",
+        "code": "package main;\nimport \"net/http\";\nimport \"io\";\nfunc main() {\n    request := http.NewRequest(\"POST\", \"http://localhost:8080/items\", \"hello\").unwrap();\n    request.Header.Set(\"Content-Type\", \"text/plain\");\n    client: http.Client;\n    client.MaxResponseBytes = 1024 * 1024;\n    response := client.Do(request).unwrap();\n    io.Println(response.StatusCode, \" \", response.Body).unwrap();\n}",
+        "note": "This initial backend targets 64-bit Linux and supports plain http:// only. It has no TLS, timeout, or cancellation support."
+      },
+      {
+        "id": "types",
+        "title": "Requests, responses, and headers",
+        "text": "Request has Method, URL, Header, and Body fields. Response has Status (such as \"200 OK\"), StatusCode, Header, and Body. A non-2xx status is a successful transport response.\n\nThe zero-value Header supports Set, Add, Get, Values, and Del. Names are case insensitive. Get returns the first value or an empty string. Values returns an independent string array, or an empty array for a missing name. Host, Connection, Content-Length, and Transfer-Encoding request headers are controlled by the client; overriding them returns an error.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "limits",
+        "title": "Framing, limits, and supported scope",
+        "text": "Client.MaxResponseBytes limits the complete response on the wire, including headers and chunk framing. A positive value overrides the default 16 MiB limit. Headers have a 64 KiB limit. The client supports DNS names, IPv4 hosts, explicit ports, request bodies, content-length and connection-close responses, chunked decoding and trailers, HEAD, no-body status codes, and up to 16 informational responses. Invalid or conflicting framing and truncated bodies return errors.\n\nPaths must already be percent escaped; fragments are removed. HTTPS, IPv6 URL literals, redirects, proxies, cookies, compression, connection reuse, server APIs, cancellation, and timeouts are not implemented. DNS, connect, and receive operations can block. Other operating systems are untested.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "tests",
+        "title": "Test locally",
+        "text": "Tests validate headers, request injection, response parsing, malformed framing, chunked bodies, size limits, and a real loopback HTTP exchange. They do not call external services.",
+        "code": "OCEAN_SRC=/path/to/ocean-src ocean test /path/to/ocean-src/net/http",
+        "note": "The test environment must allow loopback socket creation."
+      }
+    ]
+  },
+  {
+    "slug": "library/os/exec",
+    "group": "Standard library",
+    "title": "os/exec",
+    "description": "Run executables directly, capture output, and configure the working directory and environment.",
+    "sections": [
+      {
+        "id": "command",
+        "title": "Run a command",
+        "text": "`Command(name string, args ...string) Cmd` constructs a command. Arguments are passed directly to the executable; a shell is used only when you explicitly run one. `Run() Result<int>` inherits standard streams and returns zero on success. `Output() Result<string>` captures stdout and inherits stderr. `CombinedOutput() Result<string>` captures stdout and stderr together in their write order.",
+        "code": "package main;\nimport \"os/exec\";\nimport \"io\";\nfunc main() {\n    command := exec.Command(\"printf\", \"%s\", \"hello world\");\n    output := command.Output().unwrap();\n    io.Println(output).unwrap();\n    command = exec.Command(\"/bin/sh\", \"-c\", \"printf '%s' \\\"$GREETING\\\"\");\n    command.Dir = \"/tmp\";\n    command.Env = string[]{\"GREETING=hello\"};\n    io.Println(command.CombinedOutput().unwrap()).unwrap();\n}",
+        "note": "The initial process backend targets Linux x86-64 and requires a writable system temporary directory for output capture."
+      },
+      {
+        "id": "configuration",
+        "title": "Configure and find executables",
+        "text": "Cmd has Path, Args, Dir, Env, and ExitCode fields. Args excludes argv[0]. Empty Dir inherits the current working directory. Empty Env inherits the parent environment; a nonempty Env replaces it with KEY=value strings. Empty Env cannot request an empty child environment.\n\n`LookPath(name string) Result<string>` checks an explicit executable path or searches PATH. Implicit relative PATH results are errors; use an explicit path to run from the current directory.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "errors",
+        "title": "Exit errors and lifecycle",
+        "text": "Execute each Cmd once. Missing executables, NUL-containing arguments/paths/environment entries, spawn or wait failures, and nonzero or signal exits return errors. ExitCode is -1 before completion or on a signal, otherwise the child exit code. Output methods return errors on nonzero exits and do not return partial output alongside the error.\n\nOutput capture uses temporary files, avoiding pipe-buffer deadlocks. Files and spawn actions are cleaned up, and interrupted waits are retried. Captured strings can contain embedded NUL bytes. Output capture has no size bound. Start/Wait, pipes, configurable streams, timeout, cancellation, and Windows/macOS backends are not implemented.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "tests",
+        "title": "Run process tests",
+        "text": "Tests cover argument boundaries, literal shell characters, output capture, combined streams, large output, environment and working-directory configuration, executable lookup, command reuse, and failure status.",
+        "code": "OCEAN_SRC=/path/to/ocean-src ocean test /path/to/ocean-src/os/exec",
+        "note": ""
+      }
+    ]
+  },
   {
     "slug": "library/os",
     "group": "Standard library",

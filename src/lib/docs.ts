@@ -1060,7 +1060,12 @@ export const docs: Doc[] = [
         "text": "Import qualifiers default to the declared package name, except for packages at a module root, which use the final component of the module import path regardless of their declaration. For example, importing `example.com/calculator` binds `calculator`, even if the root declares `package main;`. Aliases use `as` and override this default. Names beginning with a Unicode uppercase letter are exported; lowercase declarations are private to their package. Import cycles and mixed package names are errors, except for the separate external test package allowed in `_test.oc` files.\n\nThe import path identifies where a package is found; the qualifier used in expressions normally comes from that package’s `package` declaration. An alias changes the local qualifier for this file, which is useful when two imports would otherwise have the same package name.\n\nExporting is name-based. A capitalized function such as `Answer` is available to importers, while lowercase helpers remain accessible only inside their own package. The rule also applies to types, global variables, receiver methods, aliases, and interfaces. Dot imports expose exported names directly; blank imports do not introduce a normal qualifier.",
         "code": "import \"github.com/yourname/project/helper\";\nimport \"github.com/example/collections/list\" as lists;\n\n// Inside a function:\nanswer := helper.Answer();",
         "note": "See the Packages & imports language guide for dot imports, blank imports, visibility, and receiver ownership.",
-        "links": [{ "label": "Packages & imports", "href": "/docs/language/packages-and-imports/" }],
+        "links": [
+          {
+            "label": "Packages & imports",
+            "href": "/docs/language/packages-and-imports/"
+          }
+        ],
         "after": "In this illustrative module layout, the first import supplies `helper.Answer()`. The second package is bound as `lists` regardless of its usual qualifier. Each referenced package must actually exist and declare the exported names you call."
       },
       {
@@ -1075,6 +1080,13 @@ export const docs: Doc[] = [
         "id": "initialization",
         "title": "Initialization",
         "text": "Imported packages initialize before importers. Within a package, files are sorted by filename and global initializers execute in declaration order. Globals are default-initialized first, so a forward reference may observe a default value. Owned contents of global arrays, strings, and maps remain available for the program’s lifetime and are released at process shutdown.\n\nDefault initialization happens before user initializers execute. This means a global referenced before its initializer runs has a defined default, rather than causing the compiler to reorder arbitrary expressions to satisfy the reference. Explicit types are useful for forward-referenced globals because they make the intended storage type unambiguous.\n\nKeep global initialization simple and avoid relying on surprising file-order dependencies. Imported packages finish initializing before their importers. Within one package, filename order and then declaration order determine execution. Global collections own their copies for the program’s lifetime. A function using a global collection does not borrow the temporary storage used while its initializer ran.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "target-files",
+        "title": "Select native and Wasm source files",
+        "text": "The compiler selects *_native.oc and *_native_test.oc only on native targets, and *_wasm.oc and *_wasm_test.oc only with OCOS=js OCARCH=wasm. Selection happens before parsing/import resolution, including editor overlays. Other .oc files are shared. These suffixes separate native transports and synchronization from Wasm host adapters; they do not select individual native OS/architecture pairs.",
         "code": "",
         "note": ""
       }
@@ -1469,35 +1481,70 @@ export const docs: Doc[] = [
     "slug": "library/net/http",
     "group": "Standard library",
     "title": "net/http",
-    "description": "Make blocking HTTP/1.1 requests with Go-inspired request, response, and header APIs.",
+    "description": "HTTP/1.1 and verified HTTPS, overall deadlines, cancellation, and native/Wasm transport boundaries.",
     "sections": [
       {
         "id": "client",
-        "title": "Send a request",
-        "text": "`Get(url string)` and `Post(url, contentType, body string)` return `Result<Response>`. `NewRequest(method, url, body string)` returns `Result<Request>`; an empty method means GET. Client methods `Do(request Request)`, `Get(url string)`, and `Post(url, contentType, body string)` also return `Result<Response>`. Bodies are owned strings, so no Body.Close call is required.",
-        "code": "package main;\nimport \"net/http\";\nimport \"io\";\nfunc main() {\n    request := http.NewRequest(\"POST\", \"http://localhost:8080/items\", \"hello\").unwrap();\n    request.Header.Set(\"Content-Type\", \"text/plain\");\n    client: http.Client;\n    client.MaxResponseBytes = 1024 * 1024;\n    response := client.Do(request).unwrap();\n    io.Println(response.StatusCode, \" \", response.Body).unwrap();\n}",
-        "note": "This initial backend targets 64-bit Linux and supports plain http:// only. It has no TLS, timeout, or cancellation support."
+        "title": "Send HTTP or HTTPS requests",
+        "text": "Get(url string) and Post(url, contentType, body string) return Result<Response>. A Client supports Do(request Request), Get, and Post. NewRequest(method, url, body string) returns Result<Request>; an empty method means GET. Request and response bodies are owned strings, including binary bytes. No Body.Close call is needed. A non-2xx status is a normal response.",
+        "code": "package main;\nimport \"net/http\";\nimport \"time\";\nimport \"io\";\nfunc main() {\n    client: http.Client;\n    client.Timeout = 5 * time.Second;\n    cancel: http.Cancellation;\n    request := http.NewRequestWithCancel(&cancel, \"GET\", \"https://example.com\", \"\").unwrap();\n    response := client.Do(request).unwrap();\n    io.Println(response.StatusCode, \" \", response.Body).unwrap();\n}",
+        "note": ""
       },
       {
-        "id": "types",
-        "title": "Requests, responses, and headers",
-        "text": "Request has Method, URL, Header, and Body fields. Response has Status (such as \"200 OK\"), StatusCode, Header, and Body. A non-2xx status is a successful transport response.\n\nThe zero-value Header supports Set, Add, Get, Values, and Del. Names are case insensitive. Get returns the first value or an empty string. Values returns an independent string array, or an empty array for a missing name. Host, Connection, Content-Length, and Transfer-Encoding request headers are controlled by the client; overriding them returns an error.",
+        "id": "tls",
+        "title": "Verify TLS peers",
+        "text": "The default native transport verifies the certificate chain and hostname, requires TLS 1.2 or newer, and uses libcurl’s default trust store. Client.TLSClientConfig.RootCAFile can select a PEM trust bundle for a private CA. There is no option to disable verification. TLS settings apply to the built-in native transport; a custom transport owns its TLS configuration.",
         "code": "",
         "note": ""
       },
       {
-        "id": "limits",
-        "title": "Framing, limits, and supported scope",
-        "text": "Client.MaxResponseBytes limits the complete response on the wire, including headers and chunk framing. A positive value overrides the default 16 MiB limit. Headers have a 64 KiB limit. The client supports DNS names, IPv4 hosts, explicit ports, request bodies, content-length and connection-close responses, chunked decoding and trailers, HEAD, no-body status codes, and up to 16 informational responses. Invalid or conflicting framing and truncated bodies return errors.\n\nPaths must already be percent escaped; fragments are removed. HTTPS, IPv6 URL literals, redirects, proxies, cookies, compression, connection reuse, server APIs, cancellation, and timeouts are not implemented. DNS, connect, and receive operations can block. Other operating systems are untested.",
+        "id": "timeout",
+        "title": "Set an overall deadline",
+        "text": "Client.Timeout is a nonnegative nanosecond budget; use time.Second and time.Millisecond. Zero means no deadline. The budget spans preparation, DNS, TCP connect, TLS handshake, upload, and response reading. The default transport polls deadlines/cancellation at intervals of at most 10 ms, subject to operating-system scheduling, clock resolution, and libcurl operations. Timeout errors report \"http: timeout exceeded\". A positive Request.Deadline uses absolute time.Monotonic() nanoseconds; Do combines it with the client deadline by choosing the earlier value.",
         "code": "",
+        "note": ""
+      },
+      {
+        "id": "cancellation",
+        "title": "Cancel a request",
+        "text": "Cancellation has Cancel() and Canceled() methods; its zero value works. Pass a borrowed token pointer to NewRequestWithCancel(cancel, method, url, body), attach it with request.WithCancel(cancel), or assign Request.Cancel. Another native thread may call Cancel while Do is running. Cancellation is permanent and idempotent, can affect several requests, and returns \"http: request canceled\". Keep tokens at a stable address, never copy them after use, and keep them alive until every request and canceling thread finishes. This token is separate from threads.Kill.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "types",
+        "title": "Headers and response fields",
+        "text": "Request has Method, URL, Header, Body, Cancel, Deadline, and ResponseLimit fields. Do populates Deadline and ResponseLimit for transport implementations. Response has Status (for example \"200 OK\"), StatusCode, Header, and Body. Header supports Set, Add, Get, Values, and Del. Names are case insensitive. Get returns the first value or an empty string; Values returns an independent array, or an empty array for a missing name. Host, Connection, Content-Length, and Transfer-Encoding request headers are client-controlled.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "framing",
+        "title": "Limit and validate responses",
+        "text": "Client.MaxResponseBytes is the complete HTTP wire-response limit, including headers and chunk framing. A nonpositive value selects 16 MiB. Headers and trailers have 64 KiB limits. Framed bodies finish without waiting for connection close. The client validates lengths, duplicate transfer encodings, chunk syntax, truncation, and injection attempts. It supports chunked trailers, HEAD, no-body status codes, and up to 16 informational responses. Close-delimited responses require EOF. Paths must already be escaped; fragments are removed. Redirects, IPv6 URL literals, proxies, cookies, compression, pooling, and server APIs are not implemented. Ambient proxy settings are disabled.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "platforms",
+        "title": "Native platform requirements",
+        "text": "The shared libcurl backend targets Linux x86-64/AArch64/RISC-V64, macOS x86-64/AArch64, and Windows x86-64/AArch64. Native programs need libcurl 7.68+ with TLS and asynchronous DNS, an appropriate CA store, and its development/import library. For example, use libcurl4-openssl-dev on Debian/Ubuntu, curl on Homebrew, or the matching curl package in MSYS2 CLANG64/CLANGARM64. Clang and the OS loader must find the library and its shared-library/DLL dependencies. The matching compiler links -lcurl automatically and records that requirement in object-cache metadata. Static builds also need libcurl’s transitive static libraries; their automatic discovery is not implemented.",
+        "code": "",
+        "note": "Use the compiler changes accompanying this library: libcurl auto-linking and native/Wasm source-file selection. Other native targets need execution on their CI runners; assembly validation alone does not establish runtime correctness."
+      },
+      {
+        "id": "wasm",
+        "title": "Compile for JavaScript/Wasm",
+        "text": "OCOS=js OCARCH=wasm builds the same public HTTP API without libcurl or native synchronization imports. Supply Client.Transport with a RoundTripper implementing RoundTrip(request Request) Result<Response>. Ocean Do is synchronous, while browser Fetch is asynchronous: the host adapter must provide its own Fetch/worker/suspension integration. No built-in synchronous browser Fetch adapter is provided. Without an adapter, requests return \"http: WebAssembly requires a host-supplied RoundTripper\".\n\nThe adapter owns TLS verification, CORS and browser header policy, and must honor Request.Deadline, Request.ResponseLimit, and the borrowed cancellation token. Do checks before and after delegation and bounds the returned body, but cannot interrupt a custom transport that blocks without cooperating. Wasm Cancellation is a single-threaded flag; in-flight cancellation requires an appropriate host execution model. Alongside Ocean’s normal C-runtime imports, provide env.ocean_time_monotonic_ns() -> i64, returning JavaScript BigInt nanoseconds from a monotonic clock such as performance.now(). Client.Do generally imports this clock even when Timeout is zero because the deadline machinery references it.",
+        "code": "OCOS=js OCARCH=wasm ocean build . -o app.wasm",
         "note": ""
       },
       {
         "id": "tests",
-        "title": "Test locally",
-        "text": "Tests validate headers, request injection, response parsing, malformed framing, chunked bodies, size limits, and a real loopback HTTP exchange. They do not call external services.",
-        "code": "OCEAN_SRC=/path/to/ocean-src ocean test /path/to/ocean-src/net/http",
-        "note": "The test environment must allow loopback socket creation."
+        "title": "Validate native and Wasm behavior",
+        "text": "Unit tests cover API validation, cancellation, header handling, framing, and custom transport dispatch. All library behavior tests are native Ocean *_test.oc files. The Python fixture launcher only creates local CA/server certificates and loopback servers, sets environment configuration, and invokes ocean test net/http. The Ocean tests cover verified HTTPS, rejected trust and hostnames, stalled handshakes/headers/bodies/uploads, deadlines, cancellation, concurrency, and connection failures. Without the launcher, network-dependent tests are explicitly skipped. No external service is contacted. Wasm tests build cold/hot/uncached modules and execute a custom transport in Node, asserting no native transport imports. A separate test assembles the seven monotonic-clock variants. The CI matrix provides native execution jobs for all seven targets.",
+        "code": "ocean test net/http time --notty\npython3 net/http/tests/integration.py /path/to/ocean-c\npython3 net/http/tests/linking.py /path/to/ocean-c\npython3 net/http/tests/wasm.py /path/to/ocean-c",
+        "note": ""
       }
     ]
   },
@@ -2045,6 +2092,13 @@ export const docs: Doc[] = [
         "text": "Linux x86-64/AArch64/RISC-V64 use nanosleep system calls; macOS x86-64/AArch64 use nanosleep. Interrupted POSIX sleeps resume with the remaining duration. Windows x86-64/AArch64 use relative waitable timers, rounding requests upward to 100ns timer units. Hardware timer resolution and scheduling can extend waits; the implementation does not busy-wait or change system timer resolution. Native failures panic.\n\nLong waits are split into native waits of at most 50ms, allowing cooperative cancellation at compiler checkpoints in threaded applications. time does not import threads or sync and does not add a pthread dependency on its own. Positive sleeps panic on unsupported platforms, including Wasm. Nonpositive sleeps always return immediately. Linux timing and signal interruption are tested; real macOS/Windows execution still needs host validation.",
         "code": "",
         "note": "The term/tui event loop and Tick commands use time.Sleep internally."
+      },
+      {
+        "id": "monotonic",
+        "title": "Measure monotonic time",
+        "text": "Monotonic() int returns monotonic nanoseconds with an unspecified origin. Use only differences between readings in the same process. Linux uses CLOCK_MONOTONIC, macOS uses clock_gettime(CLOCK_MONOTONIC), and Windows converts GetTickCount64 milliseconds to nanoseconds; the unit does not imply nanosecond precision. The Wasm implementation imports env.ocean_time_monotonic_ns() -> i64, supplied by the JavaScript host as a BigInt timestamp.",
+        "code": "",
+        "note": ""
       }
     ]
   },

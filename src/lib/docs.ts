@@ -1288,7 +1288,7 @@ export const docs: Doc[] = [
       {
         "id": "formatting-functions",
         "title": "Formatting functions",
-        "text": "`io.Printf(format, items...)` replaces each `{}` in the format string with the corresponding argument’s text, then writes the result. `Printfln` adds a newline. `Sprintf` returns Result<string>. Templates use {} placeholders in argument order. The number of supplied formatting arguments must equal the number of `{}` placeholders. If those counts differ, the function returns `Result.error` instead of a formatted success value. This is not C-style percent formatting.\n\nEach `{}` in the template consumes the next argument. Ordinary text, including spaces and punctuation, is copied into the result. The formatter requires the number of arguments to match the number of placeholders: too few and too many both return an error Result.\n\nChoose `Printf` or `Printfln` for immediate console output. Choose `Sprintf` when another function needs the formatted string or when you want to store it. The template language does not implement C percent directives or a general collection of width and precision specifiers.",
+        "text": "`io.Printf(format, items...)` replaces each `{}` in the format string with the corresponding argument’s text, then writes the result. `Printfln` adds a newline. `Sprintf` returns Result<string>. Templates use {} placeholders in argument order. The number of supplied formatting arguments must equal the number of `{}` placeholders. If those counts differ, the function returns `Result.error` instead of a formatted success value. This is not C-style percent formatting.\n\nEach `{}` in the template consumes the next argument. Ordinary text, including spaces and punctuation, is copied into the result. The formatter requires the number of arguments to match the number of placeholders: too few and too many both return an error Result.\n\nChoose `Printf` or `Printfln` for immediate console output. Choose `Sprintf` when another function needs the formatted string or when you want to store it. The template language does not implement C percent directives or a general collection of width and precision specifiers.\n\nOnly unescaped `{}` consumes an argument. In the runtime template, a backslash before `{` makes it literal, and two backslashes produce one literal backslash. In an Ocean string literal, write `\"\\\\{}\"` for literal `{}` and `\"\\\\\\\\\"` for one output backslash.",
         "code": "message := io.Sprintf(\"{} + {} = {}\", 2, 3, 5).unwrap();\nio.Println(message);",
         "note": "",
         "after": "The returned string is `2 + 3 = 5`, and `Println` then writes it followed by a newline. A percent sequence such as `%d` is ordinary text for these functions, not an integer placeholder.",
@@ -1343,7 +1343,7 @@ export const docs: Doc[] = [
       {
         "id": "string-conversion",
         "title": "String conversion",
-        "text": "`Sprint`(items `...any`) returns the text that `Print` would write. The implementation handles signed integers, floats, booleans, strings, arrays, and structs; raw buffers use a placeholder. The default floating-point conversion rounds to two digits after the decimal point. For example, it is intended as readable output, not as a way to serialize every significant digit of a float.\n\n`Sprint` is useful when you want the same conversion rules as the printing functions without writing to stdout. Integer values are rendered in decimal, booleans as `true` or `false`, and strings as their contents. Arrays are rendered with bracketed elements. Mutable `i8[]` values print as comma-separated decimal bytes, for example `[1, 5, 3]`. Strings print as text; use `bytes -> string` to print a byte array as text. Struct formatting uses reflected field names and field values. Enum formatting uses reflection to print qualified variant names and active payloads, for example `Event.Load`, `Event.Key(65)`, and `Event.Click(x: 2, y: 3)`. Nested values format recursively.\n\nThe current floating formatter uses two decimal places, so this API should not be assumed to preserve arbitrary input precision in its default output. It uses exact binary64 conversion with ties-to-even rounding in Ocean, independent of the C locale. A raw buffer is represented by a placeholder rather than traversed as a length-aware collection.",
+        "text": "`Sprint`(items `...any`) returns the text that `Print` would write. The implementation handles signed and unsigned integers, floats, booleans, strings, supported arrays, structs, and enums; raw buffers use a placeholder. The default floating-point conversion rounds to two digits after the decimal point. For example, it is intended as readable output, not as a way to serialize every significant digit of a float.\n\n`Sprint` is useful when you want the same conversion rules as the printing functions without writing to stdout. Integer values are rendered in decimal, booleans as `true` or `false`, and strings as their contents. Arrays are rendered with bracketed elements. Mutable `i8[]` values print as comma-separated decimal bytes, for example `[1, 5, 3]`. Strings print as text; use `bytes -> string` to print a byte array as text. Struct formatting uses reflected field names and field values. Enum formatting uses reflection to print qualified variant names and active payloads, for example `Event.Load`, `Event.Key(65)`, and `Event.Click(x: 2, y: 3)`. Nested values format recursively.\n\nThe current floating formatter uses two decimal places, so this API should not be assumed to preserve arbitrary input precision in its default output. It uses exact binary64 conversion with ties-to-even rounding in Ocean, independent of the C locale. A raw buffer is represented by a placeholder rather than traversed as a length-aware collection.\n\n`FormatFloat(value float) string` instead produces locale-independent text with 17 significant digits for finite nonzero values, suitable for binary64 round trips. It preserves signed zero and handles NaN and infinities; its output is not always valid JSON. Types without a conversion case, such as maps and pointers, produce `[unknown type]`.",
         "code": "text := io.Sprint(42);\nvalues := int[]{1, 2, 3};\nio.Println(values);",
         "note": "",
         "after": "`text` contains `\"42\"`. The final statement prints `[1 2 3]`. The local string and array have their usual owned lifetimes; returning a formatted string gives the caller an independent value."
@@ -1373,7 +1373,7 @@ export const docs: Doc[] = [
       {
         "id": "byte-reads",
         "title": "Byte reads, binary files, and file positions",
-        "text": "A file’s position is the byte offset used by its next read or write. Copies of an `os.File` share that position. `Read()`, `Readn(n)`, and `Readend()` advance it as they consume bytes. `Readall()` instead reads the whole file and attempts to restore the previous position and EOF state, including after a read failure. If restoration fails, it returns an error and discards buffered scanner state. `Setpos(position)` also discards scanner buffers so later scans do not use bytes from the old position.\n\nEnd-of-file and a failed read are different outcomes. For example, `Read()` returns a successful `-1` at EOF, whereas a closed file, missing read permission, or native I/O failure returns an error `Result`. Calling `Read()` again after EOF has already been reported panics. A negative requested byte count also panics. Check the success or EOF indicator documented for the particular operation rather than treating every empty result as an error.\n\nA failed operation may already have consumed input or written part of its output; failure does not promise that the file position and contents are unchanged. If a native close fails, the library does not retry it because the operating system may already have released the handle.\n\n`File.IsOpen()`, `CanRead()`, `CanWrite()`, and `IsBinary()` return booleans describing the shared file state. `os.FromDescriptor(fd, readable, writable)` adopts a native descriptor as a text stream; a negative descriptor panics. `File.NativeHandle()` returns the native handle and panics when the file is closed. Keep one scanner per stream and avoid interleaving its buffered operations with direct reads or writes.\n\nThe printing functions `io.Print`, `Println`, `Printf`, and `Printfln` return `Result<int>`. A successful result contains the number of bytes written, including the newline for the newline-producing functions. Native output failures return errors; Unix output retries interrupted writes. `io.Sprintf` returns `Result<string>` and reports a mismatch between placeholders and arguments. `io.Sprint` returns a plain string. These conversion and formatting functions support the full unsigned integer ranges, including the `u64` maximum `18446744073709551615`.",
+        "text": "A file’s position is the byte offset used by its next read or write. Copies of an `os.File` share that position. `Read()`, `Readn(n)`, and `Readend()` advance it as they consume bytes. `Readall()` instead reads the whole file and attempts to restore the previous position and EOF state, including after a read failure. If restoration fails, it returns an error and discards buffered scanner state. `Setpos(position)` also discards scanner buffers so later scans do not use bytes from the old position.\n\nEnd-of-file and a failed read are different outcomes. For example, `Read()` returns a successful `-1` at EOF, whereas a closed file, missing read permission, or native I/O failure returns an error `Result`. Calling `Read()` again after EOF has already been reported panics. A negative requested byte count also panics. Check the success or EOF indicator documented for the particular operation rather than treating every empty result as an error.\n\nA failed operation may already have consumed input or written part of its output; failure does not promise that the file position and contents are unchanged. If a native close fails, the library does not retry it because the operating system may already have released the handle.\n\n`File.IsOpen()`, `CanRead()`, `CanWrite()`, and `IsBinary()` return booleans describing the shared file state. `os.FromDescriptor(fd, readable, writable)` adopts a native descriptor as a text stream; a negative descriptor panics. `File.NativeHandle()` returns the native handle and panics when the file is closed. Keep one scanner per stream and avoid interleaving its buffered operations with direct reads or writes.\n\nThe printing functions `io.Print`, `Println`, `Printf`, and `Printfln` return `Result<int>`. A successful result contains the number of bytes written, including the newline for the newline-producing functions. Native output failures return errors; Unix output retries interrupted writes. `io.Sprintf` returns `Result<string>` and reports a mismatch between placeholders and arguments. `io.Sprint` returns a plain string. These conversion and formatting functions support the full unsigned integer ranges, including the `u64` maximum `18446744073709551615`.\n\n`File.SeekVersion() int` exposes the scanner invalidation counter and panics for a closed file. A successful Setpos increments it; failure to restore a Readall cursor also increments it. Normal reads do not increment it. This counter is intended for buffered-reader coordination.",
         "after": "If the file contains fewer than sixteen remaining bytes, `read.End` is `true` and `read.Bytes` still has sixteen elements, with zeroes in the unread positions. `Setpos(0)` then returns to the beginning. `Readall()` reads the whole file while restoring that position, and `Close()` releases the shared handle.",
         "code": "file := os.Open(\"data.bin\", os.FileMode.Binary).unwrap();\nread := file.Readn(16).unwrap();\nbytes := read.Bytes;\nshortRead := read.End;\nfile.Setpos(0);\nwholeFile := file.Readall().unwrap();\nfile.Close();\n",
         "note": "",
@@ -1438,7 +1438,7 @@ export const docs: Doc[] = [
       {
         "id": "marshal",
         "title": "Encode JSON",
-        "text": "`Marshal(value any) Result<string>` encodes null, booleans, strings, all integer widths, finite floats, structs, `map[string]any`, `mixed any[]`, and dynamic `int[]`, `string[]`, `float[]`, and `bool[]` arrays. Object keys are sorted. Failures use Ocean Result values.",
+        "text": "`Marshal(value any) Result<string>` encodes null, booleans, strings, all integer widths, finite floats, structs, `map[string]any`, `mixed any[]`, and dynamic `int[]`, `string[]`, `float[]`, and `bool[]` arrays. Map keys are sorted; struct fields retain declaration order. Failures use Ocean Result values.",
         "code": "package main;\nimport \"encoding/json\";\nimport \"io\";\nstruct Person { Name string; Age int; }\nfunc main() {\n    text := json.Marshal(Person{\"Ada\", 36}).unwrap();\n    value := json.Unmarshal(text).unwrap();\n    object := value.(map[string]any);\n    age := object[\"Age\"].(json.Number).Int64().unwrap();\n    io.Println(text, \" age=\", age).unwrap();\n}",
         "note": "Use the matching compiler with the interface-array mutation, boxed-array ownership, and enum tuple boxing fixes."
       },
@@ -1517,7 +1517,7 @@ export const docs: Doc[] = [
       {
         "id": "configuration",
         "title": "Configure and find executables",
-        "text": "Cmd has Path, Args, Dir, Env, and ExitCode fields. Args excludes argv[0]. Empty Dir inherits the current working directory. Empty Env inherits the parent environment; a nonempty Env replaces it with KEY=value strings. Empty Env cannot request an empty child environment.\n\n`LookPath(name string) Result<string>` checks an explicit executable path or searches PATH. Implicit relative PATH results are errors; use an explicit path to run from the current directory.",
+        "text": "Cmd has Path, Args, Dir, Env, and ExitCode fields. Args excludes argv[0]. Empty Dir inherits the current working directory. Empty Env inherits the parent environment; a nonempty Env replaces it with KEY=value strings. Empty Env cannot request an empty child environment.\n\n`LookPath(name string) Result<string>` checks an explicit executable path or searches PATH. Implicit relative PATH results are errors; use an explicit path to run from the current directory.\n\nCommand execution uses `posix_spawnp` directly; it does not call `LookPath`. To require the relative-PATH rejection described above, resolve the name with `LookPath` and pass its successful result to `Command`. PATH lookup uses the parent process environment, so setting Cmd.Env does not choose the executable search path.",
         "code": "",
         "note": ""
       },
@@ -1584,7 +1584,7 @@ export const docs: Doc[] = [
       {
         "id": "byte-reads",
         "title": "Byte reads, binary files, and file positions",
-        "text": "A file’s position is the byte offset used by its next read or write. Copies of an `os.File` share that position. `Read()`, `Readn(n)`, and `Readend()` advance it as they consume bytes. `Readall()` instead reads the whole file and attempts to restore the previous position and EOF state, including after a read failure. If restoration fails, it returns an error and discards buffered scanner state. `Setpos(position)` also discards scanner buffers so later scans do not use bytes from the old position.\n\nEnd-of-file and a failed read are different outcomes. For example, `Read()` returns a successful `-1` at EOF, whereas a closed file, missing read permission, or native I/O failure returns an error `Result`. Calling `Read()` again after EOF has already been reported panics. A negative requested byte count also panics. Check the success or EOF indicator documented for the particular operation rather than treating every empty result as an error.\n\nA failed operation may already have consumed input or written part of its output; failure does not promise that the file position and contents are unchanged. If a native close fails, the library does not retry it because the operating system may already have released the handle.\n\n`File.IsOpen()`, `CanRead()`, `CanWrite()`, and `IsBinary()` return booleans describing the shared file state. `os.FromDescriptor(fd, readable, writable)` adopts a native descriptor as a text stream; a negative descriptor panics. `File.NativeHandle()` returns the native handle and panics when the file is closed. Keep one scanner per stream and avoid interleaving its buffered operations with direct reads or writes.\n\nThe printing functions `io.Print`, `Println`, `Printf`, and `Printfln` return `Result<int>`. A successful result contains the number of bytes written, including the newline for the newline-producing functions. Native output failures return errors; Unix output retries interrupted writes. `io.Sprintf` returns `Result<string>` and reports a mismatch between placeholders and arguments. `io.Sprint` returns a plain string. These conversion and formatting functions support the full unsigned integer ranges, including the `u64` maximum `18446744073709551615`.",
+        "text": "A file’s position is the byte offset used by its next read or write. Copies of an `os.File` share that position. `Read()`, `Readn(n)`, and `Readend()` advance it as they consume bytes. `Readall()` instead reads the whole file and attempts to restore the previous position and EOF state, including after a read failure. If restoration fails, it returns an error and discards buffered scanner state. `Setpos(position)` also discards scanner buffers so later scans do not use bytes from the old position.\n\nEnd-of-file and a failed read are different outcomes. For example, `Read()` returns a successful `-1` at EOF, whereas a closed file, missing read permission, or native I/O failure returns an error `Result`. Calling `Read()` again after EOF has already been reported panics. A negative requested byte count also panics. Check the success or EOF indicator documented for the particular operation rather than treating every empty result as an error.\n\nA failed operation may already have consumed input or written part of its output; failure does not promise that the file position and contents are unchanged. If a native close fails, the library does not retry it because the operating system may already have released the handle.\n\n`File.IsOpen()`, `CanRead()`, `CanWrite()`, and `IsBinary()` return booleans describing the shared file state. `os.FromDescriptor(fd, readable, writable)` adopts a native descriptor as a text stream; a negative descriptor panics. `File.NativeHandle()` returns the native handle and panics when the file is closed. Keep one scanner per stream and avoid interleaving its buffered operations with direct reads or writes.\n\nThe printing functions `io.Print`, `Println`, `Printf`, and `Printfln` return `Result<int>`. A successful result contains the number of bytes written, including the newline for the newline-producing functions. Native output failures return errors; Unix output retries interrupted writes. `io.Sprintf` returns `Result<string>` and reports a mismatch between placeholders and arguments. `io.Sprint` returns a plain string. These conversion and formatting functions support the full unsigned integer ranges, including the `u64` maximum `18446744073709551615`.\n\n`File.SeekVersion() int` exposes the scanner invalidation counter and panics for a closed file. A successful Setpos increments it; failure to restore a Readall cursor also increments it. Normal reads do not increment it. This counter is intended for buffered-reader coordination.",
         "after": "If the file contains fewer than sixteen remaining bytes, `read.End` is `true` and `read.Bytes` still has sixteen elements, with zeroes in the unread positions. `Setpos(0)` then returns to the beginning. `Readall()` reads the whole file while restoring that position, and `Close()` releases the shared handle.",
         "code": "file := os.Open(\"data.bin\", os.FileMode.Binary).unwrap();\nread := file.Readn(16).unwrap();\nbytes := read.Bytes;\nshortRead := read.End;\nfile.Setpos(0);\nwholeFile := file.Readall().unwrap();\nfile.Close();\n",
         "note": "",
@@ -1887,6 +1887,83 @@ export const docs: Doc[] = [
         "text": "Views redraw when changed or resized, clear stale content, translate newlines to CRLF, and accept SGR styles/colors. Other control characters are filtered. Excess lines/columns are clipped; the last column is reserved to avoid autowrap. Common combining/East Asian widths are estimated. Full grapheme/emoji layout, mouse input, bracketed paste, focus events, and extended keyboard protocols are not implemented.\n\nThe library uses term and native threads on Linux x86-64/AArch64/RISC-V64, macOS x86-64/AArch64, and Windows x86-64/AArch64 with a VT-capable console. Windows VT output mode is enabled and restored. WebAssembly compilation fails because native threading is required. Linux PTY behavior is tested; real Windows/macOS execution still needs host validation. Use a compiler with interface method dispatch and native thread support.",
         "code": "",
         "note": ""
+      }
+    ]
+  },
+  {
+    "slug": "library/math",
+    "group": "Standard library",
+    "title": "math",
+    "description": "Compute binary64 powers, roots, trigonometry, logarithms, rounding, and IEEE helpers.",
+    "sections": [
+      {
+        "id": "overview",
+        "title": "Floating-point mathematics",
+        "text": "Import `math` for binary64 arithmetic implemented in Ocean and inline assembly, without C extern functions or libm. Mathematical arguments and results are `float`, including `Pow(x float, y float) float`, which accepts fractional exponents. Trigonometric angles use radians. Pi, E, Ln2, and Sqrt2 are exported float bindings; treat them as read-only by convention.",
+        "code": "package main;\nimport \"math\";\nimport \"io\";\n\nfunc main() {\n    root := math.Pow(9.0, 0.5);\n    wave := math.Sin(math.Pi / 6.0);\n    io.Println(root, \" \", wave).unwrap();\n}",
+        "note": ""
+      },
+      {
+        "id": "functions",
+        "title": "Functions and bindings",
+        "text": "Unary mathematical functions accept one float; binary functions accept two floats. Classification returns bool. Float64bits converts float to uint, and Float64frombits converts uint to float without changing the bit pattern.",
+        "code": "",
+        "note": "",
+        "table": {
+          "headers": [
+            "Group",
+            "Exports"
+          ],
+          "rows": [
+            [
+              "Bindings",
+              "`Pi`, `E`, `Ln2`, `Sqrt2`"
+            ],
+            [
+              "Trigonometry",
+              "`Sin`, `Cos`, `Tan`, `Asin`, `Acos`, `Atan`, `Atan2(y, x)`"
+            ],
+            [
+              "Powers and logarithms",
+              "`Pow(x, y)`, `Exp`, `Exp2`, `Log`, `Log2`, `Log10`, `Sqrt`, `Hypot(x, y)`"
+            ],
+            [
+              "Rounding and arithmetic",
+              "`Abs`, `Copysign(x, y)`, `Trunc`, `Floor`, `Ceil`, `Round`, `Min(x, y)`, `Max(x, y)`, `Mod(x, y)`"
+            ],
+            [
+              "IEEE helpers",
+              "`NaN() float`, `Inf(sign int) float`, `IsNaN(x float) bool`, `IsInf(x float, sign int) bool`, `Signbit(x float) bool`, `Float64bits(x float) uint`, `Float64frombits(bits uint) float`"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "special-values",
+        "title": "Rounding and special values",
+        "text": "Round rounds halfway cases away from zero. Mod uses a quotient truncated toward zero and preserves the dividend’s sign, including signed zero. Min and Max propagate NaN and choose negative and positive zero respectively. Copysign takes the magnitude of x and sign of y.\n\nInf returns negative infinity for a negative sign and positive infinity otherwise. IsInf accepts either infinity for sign zero, or the specified sign otherwise. Domain errors return NaN; Log(0) returns negative infinity. Overflow returns infinity, and underflow can produce subnormals or signed zero. Pow supports negative bases with integral exponents and special cases including Pow(NaN(), 0) and Pow(1, NaN()), both returning 1.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "accuracy",
+        "title": "Accuracy and native paths",
+        "text": "These are approximate routines, without a guarantee of correct rounding. Trigonometric reduction uses binary64 2π, so error grows with magnitude and very large angles can lose meaningful phase information. Tan loses accuracy near its poles. Keep angles near a few revolutions when accuracy matters. The portable Pow fallback can amplify logarithm rounding for large exponents.\n\nInteger powers use exponentiation by squaring. Fractional powers use x87 instructions on x86-64, with Ocean logarithm/exponential routines elsewhere. Sqrt uses native instructions on x86-64, AArch64, and RISC-V64, and normalized Newton iteration elsewhere. Native paths have been executed on x86-64; other hosts still need validation.",
+        "code": "",
+        "note": ""
+      },
+      {
+        "id": "tests",
+        "title": "Run the tests",
+        "text": "Tests exercise powers, roots, logarithms, trigonometry, rounding, IEEE edge cases, and reference values.",
+        "code": "OCEAN_SRC=/path/to/ocean-src ocean test /path/to/ocean-src/math",
+        "note": "",
+        "links": [
+          {
+            "label": "Browse math source",
+            "href": "https://github.com/junglehornet/ocean-src/tree/main/math"
+          }
+        ]
       }
     ]
   },
@@ -2205,7 +2282,7 @@ export const docs: Doc[] = [
     {
       "id": "library",
       "title": "Standard library",
-      "text": "The `junglehornet/ocean-src` repository on GitHub contains the Ocean sources for `io`, `os`, `term`, `term/tui`, `time`, `threads`, `sync`, and `reflect`. It is maintained separately from the compiler.",
+      "text": "The `junglehornet/ocean-src` repository contains the Ocean standard library: `io`, `os`, `os/exec`, `encoding/json`, `net/http`, `math`, `mem`, `term`, `term/tui`, `time`, `threads`, `sync`, `reflect`, and `testing`. It is maintained separately from the compiler and should be used with a matching compiler checkout.",
       "code": "",
       "note": "",
       "links": [
@@ -2356,35 +2433,51 @@ export const docs: Doc[] = [
         "rows": [
           [
             "`README.md`",
-            "Repository introduction."
+            "Library overview, installation relationship, and shared I/O conventions."
           ],
           [
-            "`io/io.oc`",
-            "Output, string conversion, and placeholder formatting."
+            "`io/`",
+            "Printing, formatting, round-trip float text, number parsing, and buffered scanning."
           ],
           [
-            "`os/args.oc`",
-            "Process argument storage, initialization hook, and public Args function."
+            "`os/`",
+            "Arguments, process exit, standard streams, file modes, native reads/writes, and seeking."
           ],
           [
-            "`term/term.oc`, `term/native.oc`",
-            "Terminal dimensions, detection, password input, raw mode, and native bindings."
+            "`os/exec/`",
+            "POSIX process execution and output capture on Linux x86-64."
           ],
           [
-            "`threads/threads.oc`, `sync/sync.oc`",
-            "Thread lifecycle, parking, cancellation, mutexes, and wait groups backed by the compiler’s native runtime."
+            "`encoding/json/`",
+            "Dynamic JSON decoding and scalar, array, object, and struct encoding."
           ],
           [
-            "`os/exit.oc`",
-            "Immediate whole-process termination, including all threads."
+            "`net/http/`",
+            "Blocking plain HTTP/1.1 client for 64-bit Linux."
           ],
           [
-            "`reflect/reflect.oc`",
-            "Field snapshot API backed by restricted compiler primitives."
+            "`math/`, `mem/`",
+            "Binary64 mathematics and overlapping raw byte copies."
           ],
           [
-            "`reflect/README.md`",
-            "Reflection semantics, ownership rules, and trusted-source restrictions."
+            "`term/`, `term/tui/`",
+            "Terminal utilities and a model/update/view application framework."
+          ],
+          [
+            "`time/`",
+            "Nanosecond duration units and native Sleep."
+          ],
+          [
+            "`threads/`, `sync/`",
+            "Native thread lifecycle, cancellation, mutexes, and wait groups."
+          ],
+          [
+            "`reflect/`",
+            "Struct and enum snapshot APIs backed by restricted compiler primitives."
+          ],
+          [
+            "`testing/`, `testing/internal/display/`",
+            "Test API and the compiler’s live test-report frontend."
           ]
         ]
       }
@@ -2407,7 +2500,7 @@ export const docs: Doc[] = [
     {
       "id": "changes",
       "title": "Add or change a package",
-      "text": "Keep each package in its own directory and use a matching package declaration. Follow existing export conventions: public names start with an uppercase letter. Add source files to the package directory when splitting an implementation.\n\nExercise new behavior from a small importing program. For compiler-integrated behavior, add regression coverage to the compiler repository: `tests/io_backend_test.py`, `tests/os_args_test.py`, and `tests/reflect_test.py` cover the current packages. Run the relevant CTest suites and update the corresponding reference page in this website. Preserve the documented copy behavior when changing an API. In particular, test whether returned strings, arrays, maps, and boxed values remain valid after local source values leave scope, and whether a reflected snapshot is independent of later changes to the source struct.",
+      "text": "Keep each package in its own directory and use a matching package declaration. Follow existing export conventions: public names start with an uppercase letter. Add source files to the package directory when splitting an implementation.\n\nExercise new behavior from a small importing program. Run Ocean unit tests with `OCEAN_SRC=/absolute/path/to/ocean-src ocean test /absolute/path/to/ocean-src/... --notty`; HTTP tests require loopback sockets. Native Python integration harnesses also live under `term/tests`, `term/tui/tests`, `threads/tests`, and `time/tests`; set `OCEAN` to the matching compiler executable when running them. For compiler-integrated behavior, add regression coverage to the compiler repository: `tests/io_backend_test.py`, `tests/os_args_test.py`, and `tests/reflect_test.py` cover the current packages. Run the relevant CTest suites and update the corresponding reference page in this website. Preserve the documented copy behavior when changing an API. In particular, test whether returned strings, arrays, maps, and boxed values remain valid after local source values leave scope, and whether a reflected snapshot is independent of later changes to the source struct.",
       "code": "",
       "note": "",
       "links": [

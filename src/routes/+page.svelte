@@ -253,7 +253,7 @@
   <div class="journey-grid">
    <a class="journey-main" href="/docs/getting-started/">
     <h3>Install Ocean</h3>
-    <p>Build the compiler from source, install the standard library, and compile your first program.</p>
+    <p>Download the installer or build from source, then compile your first program.</p>
     <span class="text-link">Installation and first steps <span>→</span></span>
    </a>
    <div class="journey-links">

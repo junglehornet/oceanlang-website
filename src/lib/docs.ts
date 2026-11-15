@@ -5,8 +5,22 @@ export const docs: Doc[] = [
     "slug": "getting-started",
     "group": "Start here",
     "title": "Get started with Ocean",
-    "description": "Build and install the compiler and standard library, then write, check, and run your first Ocean program.",
+    "description": "Download and run the Ocean installer, or build from source, then write, check, and run your first program.",
     "sections": [
+      {
+        "id": "download-installer",
+        "title": "Download the Ocean installer",
+        "text": "Open the Ocean releases page using the link below. Choose a published release, expand its Assets list, and download the `ocean-installer_<tag>_<arch>-<os>` archive that matches your computer. Nightly prereleases use tags such as `nightly-2026.11.15`.\n\nUse `aarch64` for Apple silicon and other ARM64 computers, or `x86_64` for Intel/AMD 64-bit computers. Linux also supports `riscv64`. Download the installer archive, rather than the compiler-only `ocean-c` asset or GitHub’s Source code archives.\n\nExtract the archive into a folder you can open in your terminal. Linux and macOS installers are in `.tar` archives; Windows also offers `.zip` archives you can extract in File Explorer. The extracted file is `ocean-installer` on Linux/macOS or `ocean-installer.exe` on Windows. Install Git first if it is not already available, then run the extracted installer:",
+        "code": "# Shell (Linux and macOS, after extracting)\n./ocean-installer\n\n# Windows PowerShell (after extracting)\n.\\ocean-installer.exe",
+        "note": "Choose the installer asset for your operating system and CPU architecture. You do not need Python or a source build to run the installer.",
+        "links": [
+          {
+            "label": "Download the Ocean installer from GitHub Releases",
+            "href": "https://github.com/junglehornet/ocean-c/releases"
+          }
+        ],
+        "after": "Follow the prompts to select a release (`latest` for stable or `latest-nightly` for a nightly), an installation directory, dependencies, and PATH configuration. The installer downloads the compiler and its matching standard-library sources. Open a new terminal when it finishes and run `ocean --version` to confirm the installation. If you used the installer, continue at “Write your first program”; the source-build instructions below are an alternative."
+      },
       {
         "id": "agent-skill",
         "title": "Code with an agent skill",

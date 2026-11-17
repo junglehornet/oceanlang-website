@@ -16,7 +16,7 @@ export const docs: Doc[] = [
         "links": [
           {
             "label": "Download the Ocean installer from GitHub Releases",
-            "href": "https://github.com/junglehornet/ocean-c/releases"
+            "href": "https://github.com/ocean-foundation/ocean-c/releases"
           }
         ],
         "after": "Follow the prompts to select a release (`latest` for stable or `latest-nightly` for a nightly), an installation directory, dependencies, and PATH configuration. The installer downloads the compiler and its matching standard-library sources. Open a new terminal when it finishes and run `ocean --version` to confirm the installation. If you used the installer, continue at “Write your first program”; the source-build instructions below are an alternative."
@@ -28,15 +28,15 @@ export const docs: Doc[] = [
         "code": "",
         "note": "The download follows the main branch, so download it again when updating your compiler to keep the guidance current.",
         "links": [
-          { "label": "View the Ocean agent skill in the compiler repository", "href": "https://github.com/junglehornet/ocean-c/blob/main/skills/ocean/SKILL.md" },
-          { "label": "Download the latest SKILL.md", "href": "https://raw.githubusercontent.com/junglehornet/ocean-c/main/skills/ocean/SKILL.md" }
+          { "label": "View the Ocean agent skill in the compiler repository", "href": "https://github.com/ocean-foundation/ocean-c/blob/main/skills/ocean/SKILL.md" },
+          { "label": "Download the latest SKILL.md", "href": "https://raw.githubusercontent.com/ocean-foundation/ocean-c/main/skills/ocean/SKILL.md" }
         ]
       },
       {
         "id": "source",
         "title": "Get the source",
         "text": "Ocean can be installed from native release assets or built from source. Nightlies use matching `nightly-YYYY.MM.DD` tags for the compiler and standard library, taken from their main branches. Releases are checked at midnight UTC: changes in either repository trigger a build, while unchanged sources are rebuilt after 30 days. There is no nightly branch. Each nightly is named for the UTC day that just ended; for example, the December 1 run uses November 30. Use matching tags when installing a nightly compiler and library. Clone the compiler repository, `ocean-c`, and the standard-library repository, `ocean-src`, into the same parent directory. This makes them sibling directories, so the compiler’s build configuration can find the library at `../ocean-src`. Git is also used when Ocean downloads external modules.\n\nThe standard library consists of `.oc` source files. Keep its package directories intact; Ocean compiles the packages your program imports when it builds that program. You do not need to build the library separately.\n\nThe commands below create both checkouts and then enter `ocean-c`. The installation section explains how CMake copies the compiler into `<prefix>/bin` and the library into `<prefix>/src`. For a manual system-wide installation, `/usr/local/lib/ocean` can serve as that prefix: place the executable in `/usr/local/lib/ocean/bin`, copy the library source tree into `/usr/local/lib/ocean/src`, and add the `bin` directory to PATH. The compiler normally finds the library relative to its own executable, not relative to your program’s working directory.",
-        "code": "git clone https://github.com/junglehornet/ocean-c.git\ngit clone https://github.com/junglehornet/ocean-src.git\ncd ocean-c",
+        "code": "git clone https://github.com/ocean-foundation/ocean-c.git\ngit clone https://github.com/ocean-foundation/ocean-src.git\ncd ocean-c",
         "note": "",
         "after": "The remaining build commands run inside `ocean-c`. Once Ocean is installed, your own programs can live in any other directory; they do not need to be placed inside either source repository."
       },
@@ -1787,7 +1787,7 @@ export const docs: Doc[] = [
         "links": [
           {
             "label": "Browse the term package source ↗",
-            "href": "https://github.com/junglehornet/ocean-src/tree/main/term"
+            "href": "https://github.com/ocean-foundation/ocean-src/tree/main/term"
           }
         ]
       }
@@ -2022,7 +2022,7 @@ export const docs: Doc[] = [
         "links": [
           {
             "label": "Browse math source",
-            "href": "https://github.com/junglehornet/ocean-src/tree/main/math"
+            "href": "https://github.com/ocean-foundation/ocean-src/tree/main/math"
           }
         ]
       }
@@ -2223,7 +2223,7 @@ export const docs: Doc[] = [
         "links": [
           {
             "label": "Browse the threads package ↗",
-            "href": "https://github.com/junglehornet/ocean-src/tree/main/threads"
+            "href": "https://github.com/ocean-foundation/ocean-src/tree/main/threads"
           }
         ]
       }
@@ -2280,7 +2280,7 @@ export const docs: Doc[] = [
         "links": [
           {
             "label": "Browse the sync package ↗",
-            "href": "https://github.com/junglehornet/ocean-src/tree/main/sync"
+            "href": "https://github.com/ocean-foundation/ocean-src/tree/main/sync"
           }
         ]
       }
@@ -2333,13 +2333,13 @@ export const docs: Doc[] = [
     {
       "id": "compiler",
       "title": "Ocean compiler",
-      "text": "The compiler, command-line tools, and language server live in `junglehornet/ocean-c` on GitHub. The repository also contains compiler tests and implementation notes.",
+      "text": "The compiler, command-line tools, and language server live in `ocean-foundation/ocean-c` on GitHub. The repository also contains compiler tests and implementation notes.",
       "code": "",
       "note": "",
       "links": [
         {
           "label": "Browse the compiler source ↗",
-          "href": "https://github.com/junglehornet/ocean-c"
+          "href": "https://github.com/ocean-foundation/ocean-c"
         },
         {
           "label": "Building and compiler architecture →",
@@ -2350,13 +2350,13 @@ export const docs: Doc[] = [
     {
       "id": "library",
       "title": "Standard library",
-      "text": "The `junglehornet/ocean-src` repository contains the Ocean standard library: `io`, `os`, `os/exec`, `encoding/json`, `net/http`, `math`, `mem`, `term`, `term/tui`, `time`, `threads`, `sync`, `reflect`, and `testing`. It is maintained separately from the compiler and should be used with a matching compiler checkout.",
+      "text": "The `ocean-foundation/ocean-src` repository contains the Ocean standard library: `io`, `os`, `os/exec`, `encoding/json`, `net/http`, `math`, `mem`, `term`, `term/tui`, `time`, `threads`, `sync`, `reflect`, and `testing`. It is maintained separately from the compiler and should be used with a matching compiler checkout.",
       "code": "",
       "note": "",
       "links": [
         {
           "label": "Browse the standard library ↗",
-          "href": "https://github.com/junglehornet/ocean-src"
+          "href": "https://github.com/ocean-foundation/ocean-src"
         },
         {
           "label": "Standard library repository guide →",
@@ -2367,13 +2367,13 @@ export const docs: Doc[] = [
     {
       "id": "website",
       "title": "Website and documentation",
-      "text": "The SvelteKit website, documentation content, shared components, and styles live in `junglehornet/oceanlang-website` on GitHub.",
+      "text": "The SvelteKit website, documentation content, shared components, and styles live in `ocean-foundation/oceanlang-website` on GitHub.",
       "code": "",
       "note": "",
       "links": [
         {
           "label": "Browse the website source ↗",
-          "href": "https://github.com/junglehornet/oceanlang-website"
+          "href": "https://github.com/ocean-foundation/oceanlang-website"
         },
         {
           "label": "Contribute to the docs website →",
@@ -2393,7 +2393,7 @@ export const docs: Doc[] = [
       "id": "checkout",
       "title": "Check out the sources",
       "text": "Install Git, CMake 4.2 or newer, a C23-capable C compiler, Clang, and libffi development headers and libraries. Python 3 is required when tests are enabled, as they are by default. CMake selects Clang unless you choose another C compiler.\n\nClone the two repositories into sibling directories. The standard library is Ocean source loaded by the compiler; it does not have a separate native build.",
-      "code": "git clone https://github.com/junglehornet/ocean-c.git\ngit clone https://github.com/junglehornet/ocean-src.git\ncd ocean-c",
+      "code": "git clone https://github.com/ocean-foundation/ocean-c.git\ngit clone https://github.com/ocean-foundation/ocean-src.git\ncd ocean-c",
       "note": ""
     },
     {
@@ -2561,7 +2561,7 @@ export const docs: Doc[] = [
       "id": "development",
       "title": "Work directly from the checkout",
       "text": "Clone the library beside the compiler and point `OCEAN_SRC` at its absolute path. Run these commands from the directory containing both repositories, after building the compiler. Replace `/path/to/example` with a package that exercises your change.",
-      "code": "git clone https://github.com/junglehornet/ocean-src.git\n# With a built sibling ocean-c checkout:\nOCEAN_SRC=\"$PWD/ocean-src\" ./ocean-c/build/ocean check /path/to/example\nOCEAN_SRC=\"$PWD/ocean-src\" ./ocean-c/build/ocean run /path/to/example",
+      "code": "git clone https://github.com/ocean-foundation/ocean-src.git\n# With a built sibling ocean-c checkout:\nOCEAN_SRC=\"$PWD/ocean-src\" ./ocean-c/build/ocean check /path/to/example\nOCEAN_SRC=\"$PWD/ocean-src\" ./ocean-c/build/ocean run /path/to/example",
       "note": "",
       "after": "There is no separate library compilation or npm/CMake build in this repository. Ocean compiles the required library packages with the importing program. For installation, preserve the package directories under the installed `src/` root."
     },
@@ -2590,7 +2590,7 @@ export const docs: Doc[] = [
       "id": "setup",
       "title": "Clone and start the website",
       "text": "Install a current Node.js version compatible with the checked-in dependencies and npm. Clone the website repository and install the locked dependency versions. Generate Cloudflare runtime types before starting the development server.",
-      "code": "git clone https://github.com/junglehornet/oceanlang-website.git\ncd oceanlang-website\nnpm ci\nnpm run gen\nnpm run dev",
+      "code": "git clone https://github.com/ocean-foundation/oceanlang-website.git\ncd oceanlang-website\nnpm ci\nnpm run gen\nnpm run dev",
       "note": "",
       "after": "Open the local URL printed by Vite. The website uses SvelteKit, Svelte 5, TypeScript, and the Cloudflare adapter. Local content editing does not require deploying the site."
     },

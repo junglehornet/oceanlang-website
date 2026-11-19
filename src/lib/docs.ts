@@ -1811,13 +1811,13 @@ export const docs: Doc[] = [
         "id": "example",
         "title": "A counter with asynchronous ticks",
         "text": "Each tick command waits on a worker and returns a message; Update schedules the next tick. The application thread remains available for keyboard and resize events. Ctrl+C is a key message in raw mode, so handle it explicitly.",
-        "code": "package main;\n\nimport \"term/tui\";\nimport \"io\";\nimport \"time\";\n\nstruct counter { count int; }\nstruct tickMsg {}\nfunc (model counter) Init() tui.Cmd { return tui.Tick(time.Second, tickMsg{}); }\nfunc (model counter) Update(message tui.Msg) (tui.Model, tui.Cmd) {\n    switch (event := message.(type)) {\n        case tui.KeyMsg:\n            if (event.Key == \"ctrl+c\" || event.Text == \"q\") return model, tui.Quit;\n            if (event.Key == \"up\" || event.Text == \"+\") model.count++;\n            if (event.Key == \"down\" || event.Text == \"-\") model.count--;\n        case tickMsg:\n            model.count++;\n            return model, tui.Tick(time.Second, tickMsg{});\n        case tui.EOFMsg: return model, tui.Quit;\n    }\n    return model, tui.NoCmd;\n}\nfunc (model counter) View() string {\n    return \"Count: \" + io.Sprint(model.count) + \"\\n↑/↓ or +/- to change · q to quit\";\n}\nfunc main() {\n    program := tui.NewProgram(counter{}, tui.Options{AltScreen: true});\n    program.Run().unwrap();\n}\n",
+        "code": "package main;\n\nimport \"term/tui\";\nimport \"io\";\nimport \"time\";\n\nstruct counter { count int; }\nstruct tickMsg {}\nfunc (model counter) Init() tui.Cmd { return tui.Tick(time.Second, tickMsg{}); }\nfunc (model counter) Update(message tui.Msg) (tui.Model, tui.Cmd) {\n    switch (event := message.(type)) {\n        case tui.KeyMsg:\n            if (event.Key == \"ctrl+c\" || event.Text == \"q\") return model, tui.Quit;\n            if (event.Key == \"up\" || event.Text == \"+\") model.count++;\n            if (event.Key == \"down\" || event.Text == \"-\") model.count--;\n        case tui.MouseMsg:\n            if (event.Action == \"press\" && event.Button == \"left\") model.count++;\n            if (event.Action == \"scroll\" && event.Button == \"up\") model.count++;\n            if (event.Action == \"scroll\" && event.Button == \"down\") model.count--;\n        case tickMsg:\n            model.count++;\n            return model, tui.Tick(time.Second, tickMsg{});\n        case tui.EOFMsg: return model, tui.Quit;\n    }\n    return model, tui.NoCmd;\n}\nfunc (model counter) View() string {\n    return \"Count: \" + io.Sprint(model.count) + \"\\n↑/↓, +/-, click or scroll to change · q to quit\";\n}\nfunc main() {\n    program := tui.NewProgram(counter{}, tui.Options{AltScreen: true, Mouse: true});\n    program.Run().unwrap();\n}\n",
         "note": ""
       },
       {
         "id": "program",
         "title": "Program lifecycle",
-        "text": "NewProgram accepts zero or one Options value. Options{} uses stdin/stdout, raw input, and redraws from the current line. AltScreen: true uses the alternate screen. Headless: true overrides terminal options, disables input, size events, View calls, and rendering. It supports command-only applications and tests without a terminal.\n\nKeep Program at a stable address and never copy it after first use: it contains a mutex. Run is single-use. Send and Quit are safe from other threads; keep Program alive until those callers finish. The queue is unbounded. FIFO order is enqueue order; concurrent commands may complete in any order, and pending messages can be discarded when Quit is processed.",
+        "text": "NewProgram accepts zero or one Options value. Options{} uses stdin/stdout, raw input, and redraws from the current line. AltScreen: true uses the alternate screen. Mouse: true enables SGR button, wheel, and drag reporting (modes 1006 and 1002); mouse reporting is off by default. Headless: true overrides terminal options, disables input, size events, View calls, and rendering. It supports command-only applications and tests without a terminal.\n\nKeep Program at a stable address and never copy it after first use: it contains a mutex. Run is single-use. Send and Quit are safe from other threads; keep Program alive until those callers finish. The queue is unbounded. FIFO order is enqueue order; concurrent commands may complete in any order, and pending messages can be discarded when Quit is processed.",
         "code": "",
         "note": "",
         "table": {
@@ -1890,7 +1890,7 @@ export const docs: Doc[] = [
       },
       {
         "id": "messages",
-        "title": "Messages and keyboard input",
+        "title": "Messages, keyboard, and mouse input",
         "text": "KeyMsg.Text contains one printable UTF-8 scalar; Key is rune, or space for ASCII space. Other key names include enter, tab, backspace, esc, up, down, left, right, home, end, insert, delete, pgup, pgdown, shift+tab, f1–f12, and ctrl+a–ctrl+z, with enter/tab/backspace taking precedence. NUL is ctrl+space; remaining control bytes use numeric names such as ctrl+28. Alt prefixes set Alt.\n\nSplit UTF-8 and common CSI/SS3 sequences are buffered. A lone Escape waits about 30ms. Invalid UTF-8 produces replacement characters; unrecognized escape sequences produce unknown keys. Ctrl+C is delivered to Update. Window dimensions are initially queued before Init results and polled approximately every 100ms. EOFMsg stops input polling; Update decides whether to quit.",
         "code": "",
         "note": "",
@@ -1903,6 +1903,10 @@ export const docs: Doc[] = [
             [
               "`KeyMsg`",
               "Key string, Text string, Alt bool."
+            ],
+            [
+              "`MouseMsg`",
+              "X int, Y int (zero-based terminal cells), Button string, Action string, Shift bool, Alt bool, Ctrl bool."
             ],
             [
               "`WindowSizeMsg`",
@@ -1936,16 +1940,23 @@ export const docs: Doc[] = [
         }
       },
       {
+        "id": "mouse",
+        "title": "Mouse input",
+        "text": "Set tui.Options{Mouse: true} to receive MouseMsg in Update. Action is press, release, motion, or scroll. Button is left, middle, right, or none; for scroll it is the direction up, down, left, or right. Shift, Alt, and Ctrl report modifiers. Motion is reported while a button is held. X and Y are zero-based coordinates in the whole terminal, including for inline views; applications perform hit testing. Headless disables mouse setup.\n\nSGR reports are buffered across reads. Malformed or unsupported reports produce an unknown key. Extra buttons and legacy X10 reports are unsupported. Reporting is disabled on normal exit, errors, and ordinary panic unwinding. Windows requires a terminal supplying SGR reports through VT input; Windows/macOS runtime behavior still needs host validation.",
+        "code": "",
+        "note": ""
+      },
+      {
         "id": "cleanup",
         "title": "Cancellation and terminal restoration",
-        "text": "Run restores raw settings, shows the cursor, leaves the alternate screen, and restores Windows output mode on normal return, returned errors, and ordinary model-panic unwinding. Model panics propagate; command panics are recovered and become Run errors. OS signal termination, os.Exit, native crashes, and SIGKILL bypass deferred cleanup. Only one program may own the terminal at a time; do not read stdin or write stdout elsewhere during Run.\n\nShutdown requests cooperative cancellation and joins outstanding commands, including nested batch children. Command defers run. Arbitrary blocking native I/O cannot be forcibly interrupted and may delay Run returning until the call finishes. Terminal restoration occurs before worker joins. Use bounded I/O or application-specific cancellation. External threads and resources remain the caller’s responsibility; do not Return/Kill the Run thread. Pointers in messages still borrow their pointees.",
+        "text": "Run disables enabled mouse reporting, restores raw settings, shows the cursor, leaves the alternate screen, and restores Windows output mode on normal return, returned errors, and ordinary model-panic unwinding. Model panics propagate; command panics are recovered and become Run errors. OS signal termination, os.Exit, native crashes, and SIGKILL bypass deferred cleanup. Only one program may own the terminal at a time; do not read stdin or write stdout elsewhere during Run.\n\nShutdown requests cooperative cancellation and joins outstanding commands, including nested batch children. Command defers run. Arbitrary blocking native I/O cannot be forcibly interrupted and may delay Run returning until the call finishes. Terminal restoration occurs before worker joins. Use bounded I/O or application-specific cancellation. External threads and resources remain the caller’s responsibility; do not Return/Kill the Run thread. Pointers in messages still borrow their pointees.",
         "code": "",
         "note": ""
       },
       {
         "id": "rendering",
         "title": "Rendering and platforms",
-        "text": "Views redraw when changed or resized, clear stale content, translate newlines to CRLF, and accept SGR styles/colors. Other control characters are filtered. Excess lines/columns are clipped; the last column is reserved to avoid autowrap. Common combining/East Asian widths are estimated. Full grapheme/emoji layout, mouse input, bracketed paste, focus events, and extended keyboard protocols are not implemented.\n\nThe library uses term and native threads on Linux x86-64/AArch64/RISC-V64, macOS x86-64/AArch64, and Windows x86-64/AArch64 with a VT-capable console. Windows VT output mode is enabled and restored. WebAssembly compilation fails because native threading is required. Linux PTY behavior is tested; real Windows/macOS execution still needs host validation. Use a compiler with interface method dispatch and native thread support.",
+        "text": "Views redraw when changed or resized, clear stale content, translate newlines to CRLF, and accept SGR styles/colors. Other control characters are filtered. Excess lines/columns are clipped; the last column is reserved to avoid autowrap. Common combining/East Asian widths are estimated. Full grapheme/emoji layout, bracketed paste, focus events, and extended keyboard protocols are not implemented.\n\nThe library uses term and native threads on Linux x86-64/AArch64/RISC-V64, macOS x86-64/AArch64, and Windows x86-64/AArch64 with a VT-capable console. Windows VT output mode is enabled and restored. WebAssembly compilation fails because native threading is required. Linux PTY behavior is tested; real Windows/macOS execution still needs host validation. Use a compiler with interface method dispatch and native thread support.",
         "code": "",
         "note": ""
       }

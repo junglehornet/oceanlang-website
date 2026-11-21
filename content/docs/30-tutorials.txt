@@ -1,0 +1,262 @@
+=== tutorials/checklist
+group: Tutorials
+title: Build a checklist app
+desc: Write a small interactive command-line program step by step, using structs, methods, dynamic arrays, Result, and input from the terminal.
+
+--- goal | What you will build
+This tutorial builds a to-do checklist that runs in the terminal. You type commands, and it keeps a list of tasks in memory:
+
+`add Buy rope` adds a task, `done 1` marks the first task complete, `list` shows every task, and `quit` prints how many are left and exits.
+
+Along the way you will use structs and methods, a dynamic array, pointer receivers, `Result` for error reporting, string slicing, and reading lines from standard input. It assumes you have Ocean installed and have read the first few pages of the language guide.
+
+--- setup | Set up the project
+Create a directory for the program and initialize a module in it. All the code goes in one file, `main.oc`.
+```code Terminal
+mkdir checklist
+cd checklist
+ocean mod init example.com/checklist
+```
+
+--- data | Model the data
+Start with the data. A task has a title and a flag saying whether it is done. The checklist holds a dynamic array of tasks, which starts empty and grows as tasks are added.
+```code
+// check: skip
+package main;
+
+import "io";
+
+struct Task {
+    title string;
+    done bool;
+}
+
+struct Checklist {
+    tasks Task[];
+}
+```
+@after
+Wrapping the array in a `Checklist` struct gives us somewhere to hang methods, which keeps the main loop short.
+
+--- adding | Add and complete tasks
+`Add` and `Complete` change the checklist, so they take a pointer receiver, `*Checklist`. With a value receiver they would modify a copy and the change would be lost.
+
+Completing a task can fail if the user types a number that doesn't exist. Rather than crashing, `Complete` returns a `Result<string>`: the title of the completed task on success, or an error message. Users count from 1 while arrays count from 0, hence the `number - 1`.
+```code
+func (list *Checklist) Add(title string) {
+    list.tasks.append(Task{title, false});
+}
+
+func (list *Checklist) Complete(number int) Result<string> {
+    if (number < 1 || number > len(list.tasks)) {
+        return Result<string>.error("no task number " + io.Sprint(number));
+    }
+    list.tasks[number - 1].done = true;
+    return Result<string>.value(list.tasks[number - 1].title);
+}
+```
+
+--- showing | Show the list
+`Print` and `Remaining` only read the checklist, so a value receiver is fine. `io.Printfln` replaces each `{}` with the next argument and adds a newline. The conditional expression picks the checkbox mark.
+```code
+func (list Checklist) Print() {
+    if (len(list.tasks) == 0) {
+        io.Println("Nothing to do.");
+        return;
+    }
+    for (i, task := range list.tasks) {
+        mark := task.done ? "x" : " ";
+        io.Printfln("{}. [{}] {}", i + 1, mark, task.title);
+    }
+}
+
+func (list Checklist) Remaining() int {
+    count := 0;
+    for (_, task := range list.tasks) {
+        if (!task.done) count++;
+    }
+    return count;
+}
+```
+
+--- parsing | Split a command
+Each line the user types is a command word, optionally followed by a space and more text. `command` scans for the first space and uses slicing to return the two parts. If there is no space, the whole line is the command and the rest is empty. Returning two results avoids defining a struct just for this.
+```code
+// Split a line into its first word and the rest of the text.
+func command(line string) (string, string) {
+    for (i, b := range line) {
+        if (b == ' ') return line[:i], line[i + 1:];
+    }
+    return line, "";
+}
+```
+
+--- loop | The main loop
+`main` creates an empty checklist, then loops forever: print a prompt, read a line with `io.Scanln`, split it, and act on the command with a `switch`.
+
+`io.Scanln` returns a `Result<string>`. Reading from the terminal is not expected to fail here, so `unwrap()` is appropriate. At the end of input (for example when the user presses Ctrl+D) it returns an empty string, which is treated like `quit`, so the program ends cleanly even when input is piped in.
+
+`io.ParseInt` turns the text after `done` into a number. It returns an error rather than panicking when the text isn't a number, so the program can print a usage hint and `continue` to the next prompt.
+```code
+func main() {
+    list: Checklist;
+    io.Println("Commands: add TEXT, done NUMBER, list, quit");
+    for (;;) {
+        io.Print("> ");
+        line := io.Scanln().unwrap();
+        name, rest := command(line);
+        switch (name) {
+            case "add":
+                if (rest == "") {
+                    io.Println("Usage: add TEXT");
+                    continue;
+                }
+                list.Add(rest);
+            case "done":
+                number := io.ParseInt(rest);
+                if (number.hasError()) {
+                    io.Println("Usage: done NUMBER");
+                    continue;
+                }
+                result := list.Complete(number.unwrap());
+                if (result.hasError()) {
+                    io.Println(result.error());
+                } else {
+                    io.Println("Completed: ", result.unwrap());
+                }
+            case "list":
+                list.Print();
+            case "quit", "":
+                io.Println(list.Remaining(), " left to do. Goodbye!");
+                return;
+            default:
+                io.Println("Unknown command: ", name);
+        }
+    }
+}
+```
+@after
+`continue` inside a `switch` continues the enclosing loop. Cases never fall through, so no `break` is needed between them.
+
+--- run | Run it
+Check the program, then run it and try some commands.
+```code Terminal
+ocean check .
+ocean run .
+```
+
+--- session | A sample session
+Here is what using it looks like:
+```code Output
+Commands: add TEXT, done NUMBER, list, quit
+> add Buy rope
+> add Patch the sail
+> done 1
+Completed: Buy rope
+> done 9
+no task number 9
+> list
+1. [x] Buy rope
+2. [ ] Patch the sail
+> quit
+1 left to do. Goodbye!
+```
+
+--- complete | The complete program
+Here is the whole file in one piece.
+```code
+package main;
+
+import "io";
+
+struct Task {
+    title string;
+    done bool;
+}
+
+struct Checklist {
+    tasks Task[];
+}
+
+func (list *Checklist) Add(title string) {
+    list.tasks.append(Task{title, false});
+}
+
+func (list *Checklist) Complete(number int) Result<string> {
+    if (number < 1 || number > len(list.tasks)) {
+        return Result<string>.error("no task number " + io.Sprint(number));
+    }
+    list.tasks[number - 1].done = true;
+    return Result<string>.value(list.tasks[number - 1].title);
+}
+
+func (list Checklist) Print() {
+    if (len(list.tasks) == 0) {
+        io.Println("Nothing to do.");
+        return;
+    }
+    for (i, task := range list.tasks) {
+        mark := task.done ? "x" : " ";
+        io.Printfln("{}. [{}] {}", i + 1, mark, task.title);
+    }
+}
+
+func (list Checklist) Remaining() int {
+    count := 0;
+    for (_, task := range list.tasks) {
+        if (!task.done) count++;
+    }
+    return count;
+}
+
+// Split a line into its first word and the rest of the text.
+func command(line string) (string, string) {
+    for (i, b := range line) {
+        if (b == ' ') return line[:i], line[i + 1:];
+    }
+    return line, "";
+}
+
+func main() {
+    list: Checklist;
+    io.Println("Commands: add TEXT, done NUMBER, list, quit");
+    for (;;) {
+        io.Print("> ");
+        line := io.Scanln().unwrap();
+        name, rest := command(line);
+        switch (name) {
+            case "add":
+                if (rest == "") {
+                    io.Println("Usage: add TEXT");
+                    continue;
+                }
+                list.Add(rest);
+            case "done":
+                number := io.ParseInt(rest);
+                if (number.hasError()) {
+                    io.Println("Usage: done NUMBER");
+                    continue;
+                }
+                result := list.Complete(number.unwrap());
+                if (result.hasError()) {
+                    io.Println(result.error());
+                } else {
+                    io.Println("Completed: ", result.unwrap());
+                }
+            case "list":
+                list.Print();
+            case "quit", "":
+                io.Println(list.Remaining(), " left to do. Goodbye!");
+                return;
+            default:
+                io.Println("Unknown command: ", name);
+        }
+    }
+}
+```
+
+--- extend | Ideas for extending it
+Add a `remove NUMBER` command using the dynamic array's `remove` method. Save the list to a file when quitting and load it at startup with `os.Open`, `File.Write`, and an `io.Scanner`; the os and io library pages show how. Or move `Task` and `Checklist` into their own package in a subdirectory, exporting the methods `main` needs.
+@links
+Files with the os package -> /docs/library/os/
+Reading input with io -> /docs/library/io/

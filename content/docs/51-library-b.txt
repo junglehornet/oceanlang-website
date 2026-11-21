@@ -1,0 +1,363 @@
+=== library/term
+group: Standard library
+title: term
+desc: Query terminal size, detect terminals, read passwords without echo, and switch to raw mode.
+
+--- functions | Functions
+Every function takes an open `os.File`, usually `os.Stdin().unwrap()`, and returns a `Result`. The package never closes the file.
+@table
+Function | Result
+`term.IsTerminal(file)` | `Result<bool>`: whether the file is a terminal (a pipe or regular file gives `false`)
+`term.GetSize(file)` | `Result<term.Size>`: the terminal's `Width` in columns and `Height` in rows
+`term.ReadPassword(file)` | `Result<string>`: one line of input read without echoing it
+`term.MakeRaw(file)` | `Result<bool>`: save the current settings and switch to raw mode
+`term.Restore(file)` | `Result<bool>`: restore the settings saved by `MakeRaw`
+
+--- example | Example
+```code
+// check: skip
+package main;
+
+import "io";
+import "os";
+import "term";
+
+func restore(input os.File) {
+    term.Restore(input).unwrap();
+}
+
+func main() {
+    input := os.Stdin().unwrap();
+    if (!term.IsTerminal(input).unwrap()) {
+        io.Println("not a terminal");
+        return;
+    }
+    size := term.GetSize(input).unwrap();
+    io.Println(size.Width, " columns, ", size.Height, " rows");
+
+    io.Print("Password: ");
+    password := term.ReadPassword(input).unwrap();
+    io.Println();
+    io.Println("read ", len(password), " characters");
+
+    term.MakeRaw(input).unwrap();
+    defer restore(input);
+    key := input.Readchunk(1).unwrap();
+}
+```
+@after
+`ReadPassword` prints neither a prompt nor a newline, so print them yourself as shown. It restores the terminal's settings afterward, even if reading fails.
+
+--- raw-mode | Raw mode
+In raw mode the terminal delivers each key press immediately, without waiting for Enter, and does not echo or interpret special keys: Ctrl+C arrives as a byte rather than stopping the program. Always restore the terminal before your program exits; registering `Restore` with `defer` right after `MakeRaw` makes that automatic, including during a panic. Settings cannot be restored if the process is killed.
+
+For full-screen interactive programs, the `term/tui` package handles raw mode, input decoding, and redrawing for you.
+
+=== library/term/tui
+group: Standard library
+title: term/tui
+desc: Build interactive terminal applications with a model, an update function, and a view.
+
+--- architecture | The model–update–view loop
+`term/tui` structures an interactive terminal program as a loop, in the style of the Bubble Tea library. Your application state is a model, a type with three methods:
+```code
+interface Model {
+    Init() Cmd;
+    Update(message Msg) (Model, Cmd);
+    View() string;
+}
+```
+@after
+`View` returns the text to show on screen. `Update` receives each event, such as a key press, a mouse click, a resize, or a timer, and returns the new model. `Init` runs once at the start. Both `Init` and `Update` also return a command: a function the framework runs in the background, whose returned message is later fed back into `Update`. `Msg` is simply `any`, and `Cmd` is `func() Msg`.
+
+The three methods always run one at a time, on the thread that called `Run`, so model state never needs locking. Commands run on separate threads; give them copies of the data they need rather than letting them touch the model.
+
+--- counter | A complete program
+This counter increases every second, responds to the arrow keys and the mouse, and quits on `q` or Ctrl+C.
+```code
+package main;
+
+import "io";
+import "term/tui";
+import "time";
+
+struct counter { count int; }
+struct tickMsg {}
+
+func (model counter) Init() tui.Cmd {
+    return tui.Tick(time.Second, tickMsg{});
+}
+
+func (model counter) Update(message tui.Msg) (tui.Model, tui.Cmd) {
+    switch (event := message.(type)) {
+        case tui.KeyMsg:
+            if (event.Key == "ctrl+c" || event.Text == "q") return model, tui.Quit;
+            if (event.Key == "up") model.count++;
+            if (event.Key == "down") model.count--;
+        case tui.MouseMsg:
+            if (event.Action == "press" && event.Button == "left") model.count++;
+        case tickMsg:
+            model.count++;
+            return model, tui.Tick(time.Second, tickMsg{});
+        case tui.EOFMsg:
+            return model, tui.Quit;
+    }
+    return model, tui.NoCmd;
+}
+
+func (model counter) View() string {
+    return "Count: " + io.Sprint(model.count) + "\n↑/↓ or click to change, q to quit";
+}
+
+func main() {
+    program := tui.NewProgram(counter{}, tui.Options{AltScreen: true, Mouse: true});
+    program.Run().unwrap();
+}
+```
+@after
+`counter` uses value receivers, so `Update` changes its own copy and returns it. A model can also be a pointer to a struct, whose methods modify it in place and return the same pointer. Notice that `tui.Quit` and `tui.NoCmd` are passed as function values, without parentheses. Ticks fire once; schedule the next one from `Update` to repeat.
+
+`Run` returns the final model as a `Result<tui.Model>`; assert it back to your type, as in `final.(counter)`, if you need its state.
+
+--- program | Programs and options
+`tui.NewProgram(model, options)` creates a program, and `program.Run()` takes over the terminal until a quit message arrives, then restores it. Keep the program in one variable and don't copy it. `program.Send(message)` delivers a message from any thread, and `program.Quit()` asks it to stop.
+@table
+Option | Effect
+`AltScreen: true` | Draw on the terminal's alternate screen and restore the previous contents on exit
+`Mouse: true` | Report mouse clicks, wheel movement, and drags as `MouseMsg`
+`Headless: true` | Don't use the terminal at all (useful for tests and command-only programs)
+@after
+Without `AltScreen`, the view is drawn inline, starting at the current line. Only redrawn lines are repainted. While `Run` is active, don't read standard input or print to standard output elsewhere: return everything through `View`.
+
+--- messages | Messages
+@table
+Message | Fields and meaning
+`tui.KeyMsg` | `Key`, `Text`, `Alt`: a key press. `Text` holds the character for printable keys
+`tui.MouseMsg` | `X`, `Y` (zero-based cell), `Button`, `Action`, `Shift`, `Alt`, `Ctrl`
+`tui.WindowSizeMsg` | `Width`, `Height`: sent at startup and whenever the terminal is resized
+`tui.EOFMsg` | Terminal input has ended
+`tui.ReadMsg`, `tui.WriteMsg`, `tui.ErrorMsg` | Results of the `tui.Read` and `tui.Write` commands
+@after
+For printable characters, `Key` is `rune` and `Text` holds the character. Other key names include `enter`, `tab`, `backspace`, `esc`, `space`, `up`, `down`, `left`, `right`, `home`, `end`, `pgup`, `pgdown`, `insert`, `delete`, `shift+tab`, `f1` to `f12`, and `ctrl+a` to `ctrl+z`. In raw mode Ctrl+C is an ordinary key, so handle `ctrl+c` if you want it to quit.
+
+Mouse actions are `press`, `release`, `motion` (while a button is held), and `scroll`. Buttons are `left`, `middle`, `right`, or `none`; for scrolling, `Button` gives the direction: `up`, `down`, `left`, or `right`. Coordinates count from the top-left corner of the whole terminal.
+
+--- commands | Commands
+@table
+Command | Effect
+`tui.NoCmd` | Do nothing
+`tui.Quit` | Stop the program
+`tui.Tick(duration, message)` | Deliver `message` once after `duration` nanoseconds
+`tui.Batch(commands...)` | Run several commands at the same time
+`tui.Sequence(commands...)` | Run commands one after another
+`tui.Read(file, count)`, `tui.Write(file, text)` | Read from or write to another file in the background
+@after
+Any function of type `func() tui.Msg` is a command, so you can write your own that does slow work, such as reading a file, and returns a message describing the result. Each running command uses its own thread. When the program quits, unfinished commands are cancelled and waited for. `term/tui` needs native threads, so it is not available on WebAssembly.
+
+=== library/math
+group: Standard library
+title: math
+desc: Trigonometry, powers, logarithms, rounding, and floating-point helpers for float values.
+
+--- overview | Overview
+All functions take and return `float` values unless noted. Angles are in radians. The package is implemented in Ocean (with some assembly for speed) and doesn't depend on the C math library.
+```code
+// check: run
+// expect: 3.00 0.50 5.00
+package main;
+
+import "io";
+import "math";
+
+func main() {
+    root := math.Pow(9.0, 0.5);
+    wave := math.Sin(math.Pi / 6.0);
+    io.Println(root, " ", wave, " ", math.Hypot(3.0, 4.0));
+}
+```
+@table
+Group | Functions
+Constants | `Pi`, `E`, `Ln2`, `Sqrt2`
+Trigonometry | `Sin`, `Cos`, `Tan`, `Asin`, `Acos`, `Atan`, `Atan2(y, x)`
+Powers and logarithms | `Pow(x, y)`, `Sqrt`, `Exp`, `Exp2`, `Log` (natural), `Log2`, `Log10`, `Hypot(x, y)`
+Rounding | `Trunc`, `Floor`, `Ceil`, `Round` (halves round away from zero)
+Arithmetic | `Abs`, `Copysign(x, y)`, `Min`, `Max`, `Mod(x, y)`
+IEEE values | `NaN()`, `Inf(sign)`, `IsNaN(x)`, `IsInf(x, sign)`, `Signbit(x)`, `Float64bits(x)`, `Float64frombits(bits)`
+
+--- details | Special values and accuracy
+Invalid inputs return NaN, and overflow returns infinity, rather than panicking. `Log(0)` is negative infinity. `Inf(sign)` gives negative infinity for a negative sign and positive infinity otherwise; `IsInf(x, 0)` accepts either. `Float64bits` and `Float64frombits` convert between a float and its raw bits as a `uint`.
+
+The results are close approximations, not always correctly rounded. Trigonometric functions lose accuracy for very large angles, so keep angles within a few turns of zero.
+
+=== library/time
+group: Standard library
+title: time
+desc: Pause execution, measure elapsed time, and express durations in nanoseconds.
+
+--- durations | Durations
+Durations in Ocean are `int` values counting nanoseconds. The package exports units to make them readable: `time.Nanosecond`, `time.Microsecond`, `time.Millisecond`, and `time.Second`. Multiply to build a duration, such as `250 * time.Millisecond`.
+
+--- sleep-measure | Sleeping and measuring
+`time.Sleep(duration)` pauses the calling thread for at least about that long; zero and negative durations return immediately. `time.Monotonic()` returns a reading from a clock that only moves forward, in nanoseconds. Its starting point is arbitrary, so it is only useful for measuring the time between two readings in the same program.
+```code
+// check: run
+// expect: true
+package main;
+
+import "io";
+import "time";
+
+func main() {
+    start := time.Monotonic();
+    time.Sleep(20 * time.Millisecond);
+    elapsed := time.Monotonic() - start;
+    io.Println(elapsed >= 20 * time.Millisecond);
+}
+```
+@after
+On Windows the monotonic clock has millisecond precision. There is no wall-clock (calendar date and time) support yet.
+
+=== library/threads
+group: Standard library
+title: threads
+desc: Run functions concurrently on native operating-system threads.
+
+--- spawn | Starting and waiting for threads
+`threads.Spawn(job)` starts a function or closure on a new operating-system thread and returns a thread ID. `threads.Await(id)` waits until that thread has finished, and `threads.IsDone(id)` checks without waiting. `threads.CurrentID()` returns the calling thread's ID; the main thread is 0. IDs are never reused, and passing an unknown ID to any function panics.
+```code
+// check: run
+// expect: 4
+package main;
+
+import "io";
+import "threads";
+import "sync";
+
+func main() {
+    total := 0;
+    lock: sync.Mutex;
+    ids := make(int[]);
+    for (i := 0; i < 4; i++) {
+        ids.append(threads.Spawn(func() {
+            lock.Lock();
+            defer lock.Unlock();
+            total += 1;
+        }));
+    }
+    for (_, id := range ids) {
+        threads.Await(id);
+    }
+    io.Println(total);
+}
+```
+@after
+Closures share the variables they capture, so threads that modify the same variable must coordinate, here with a `sync.Mutex`. When `main` returns, the program waits for every thread still running before it exits.
+
+--- control | Pausing, stopping, and killing
+@table
+Function | Effect
+`threads.Yield()` | Pause the calling thread until another thread wakes it
+`threads.Wake(id)` | Resume a thread that is paused in `Yield` (no effect otherwise)
+`threads.Return()` | End the calling thread from any depth, running its deferred calls
+`threads.Kill(id)` | Ask a thread to stop; follow with `Await` to wait for it
+@after
+Killing is cooperative: the target stops the next time it starts a function call, begins a loop iteration, or waits in `Yield`, `Await`, or a `sync` wait, and its deferred calls run. A thread blocked inside a long native call or assembly block stops only once that returns. `Return` and `Kill` are not panics and cannot be recovered. An unrecovered panic in any thread ends the whole program.
+
+--- platforms | Platforms
+Threads use pthreads on Linux and macOS and the Win32 API on Windows. Importing `threads` (or `sync`) when compiling for WebAssembly is an error.
+
+=== library/sync
+group: Standard library
+title: sync
+desc: Coordinate threads with mutexes and wait groups.
+
+--- mutex | Mutex
+A `sync.Mutex` ensures only one thread at a time runs a section of code. `Lock()` waits until the mutex is free and takes it, `Unlock()` releases it, and `TryLock()` takes it only if it is free, returning whether it succeeded. Register the unlock with `defer` immediately after locking, so the mutex is released even if the thread returns early or is killed.
+
+Mutexes are not reentrant, so a thread must not lock a mutex it already holds. Unlocking a mutex that isn't locked panics.
+
+--- waitgroup | WaitGroup
+A `sync.WaitGroup` waits for a set of tasks to finish. Call `Add(n)` before starting `n` tasks, have each task call `Done()` when it finishes (with `defer`), and call `Wait()` to block until all are done.
+```code
+// check: run
+// expect: done 3
+package main;
+
+import "io";
+import "threads";
+import "sync";
+
+func main() {
+    group: sync.WaitGroup;
+    lock: sync.Mutex;
+    finished := 0;
+    for (i := 0; i < 3; i++) {
+        group.Add(1);
+        threads.Spawn(func() {
+            defer group.Done();
+            lock.Lock();
+            defer lock.Unlock();
+            finished++;
+        });
+    }
+    group.Wait();
+    io.Println("done ", finished);
+}
+```
+
+--- rules | Using them correctly
+Both types work as soon as they are declared; no initialization is needed. Their methods use pointer receivers, and they must stay at a fixed location: never copy a mutex or wait group after you start using it, and pass it to functions as a pointer. A wait group can be reused only after every earlier `Wait` call has returned.
+
+=== library/mem
+group: Standard library
+title: mem
+desc: Copy raw bytes between memory regions.
+
+--- copy | mem.Copy
+`mem.Copy(source, destination, byteCount)` copies exactly `byteCount` bytes from one address to another. The regions may overlap. Both pointers are `*void`, so any typed pointer can be passed. Both regions must be valid for the full count; a count of zero touches neither, and a negative count panics.
+```code
+// check: run
+// expect: [1 1 2 3]
+package main;
+
+import "io";
+import "mem";
+
+func main() {
+    data: u8[4] = {1, 2, 3, 4};
+    mem.Copy(&data[0], &data[1], 3);   // shift the first three bytes right
+    io.Println(data);
+}
+```
+@after
+`mem.Copy` moves bytes only. It does not copy the strings or arrays a value owns, so use ordinary assignment for anything other than plain numeric data.
+
+=== library/reflect
+group: Standard library
+title: reflect
+desc: Inspect the fields of structs and the variants of enums at runtime.
+
+--- fields | Struct fields
+`reflect.Fields(value)` returns an array of `reflect.Field` values, one for each field of a struct, in declaration order. Each `Field` has a `Name` string and a `Value` of type `any`. Private fields are included. The values are independent copies: changing them does not affect the original. For anything that isn't a struct or enum, the array is empty, and pointers are not followed (pass `*pointer` to inspect what it points to).
+```code
+// check: run
+// expect: name = Ada
+// expect: age = 36
+package main;
+
+import "io";
+import "reflect";
+
+struct Person { name string; age int; }
+
+func main() {
+    for (_, field := range reflect.Fields(Person{"Ada", 36})) {
+        io.Println(field.Name, " = ", field.Value);
+    }
+}
+```
+
+--- enums | Enums
+`reflect.IsStruct(value)` and `reflect.IsEnum(value)` report what kind of value you have. `reflect.EnumVariant(value)` returns the variant's qualified name, such as `Event.Key`, or an empty string for a non-enum. For an enum, `Fields` returns the active variant's data: record fields with their names, tuple values with empty names.
+
+`io.Println` uses this package to print structs and enums.

@@ -1,0 +1,137 @@
+=== source
+group: Contribute
+title: Source code
+desc: Where the compiler, standard library, and this website are developed.
+
+--- repositories | The three repositories
+Ocean is developed in the open on GitHub, in three repositories under the `ocean-foundation` organization.
+
+`ocean-c` holds the compiler, written in C, together with the language server, the installer, the release scripts, the editor support files, and the compiler's test suite.
+
+`ocean-src` holds the standard library, written in Ocean. A compiler release and the library tag with the same name belong together.
+
+`oceanlang-website` holds this website and its documentation.
+@links
+ocean-foundation/ocean-c -> https://github.com/ocean-foundation/ocean-c
+ocean-foundation/ocean-src -> https://github.com/ocean-foundation/ocean-src
+ocean-foundation/oceanlang-website -> https://github.com/ocean-foundation/oceanlang-website
+
+--- contributing | Making a contribution
+Contributions are made as pull requests against each repository's `main` branch. Describe what you changed and which tests you ran. A language change usually touches more than one repository: the compiler, the standard library if it uses the change, and these docs. The compiler repository's agent skill file, `skills/ocean/SKILL.md`, is kept in step with the language and should be updated in the same change.
+
+=== contribute/compiler
+group: Contribute
+title: Working on the compiler
+desc: Build the compiler, run it against a library checkout, find your way around the pipeline, and run its tests.
+
+--- build | Build a development compiler
+Follow the source build on the getting-started page: clone `ocean-c` and `ocean-src` side by side and build with CMake. The build produces `build/ocean-c` and an identical `build/ocean`. Rebuild with `cmake --build build` after changing C files. To switch C compilers, configure a fresh build directory with `-DCMAKE_C_COMPILER=…` instead of reusing the old one.
+```code Terminal
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+```
+@after
+You can also build with `make VERSION=1.2.3`, which wraps CMake and stamps the version into `ocean --version`. Without a version, it reports `dev`.
+
+--- run | Run it against your library checkout
+A compiler in the build directory has no installed library next to it, so point `OCEAN_SRC` at your `ocean-src` checkout. Setting `OCEAN_BUILD_CACHE=off` makes sure every run really exercises the compiler you just built, rather than reusing cached objects.
+```code Terminal
+export OCEAN_SRC="$PWD/../ocean-src"
+OCEAN_BUILD_CACHE=off build/ocean check /path/to/example
+```
+
+--- pipeline | How the compiler is organized
+The compiler's sources sit at the repository root. A build passes through these stages:
+@table
+Stage | Main files
+Command-line interface and tool invocation | `main.c`, `platform.c`
+Module and package loading, imports, external modules | `package.c`
+Scanning source text into tokens | `scanner.c`, `token.c`
+Parsing tokens into an abstract syntax tree | `parser.c`, `ast.c`
+Name resolution and type checking | `semantic.c`, `semantic_enum.inc`
+Generating LLVM IR | `backend.c` and its `backend_*.inc` parts
+Build cache | `build_cache.c`
+Runtime support embedded in programs | `runtime_threads.c`, `runtime_process.c`
+Language server | `lsp.c`, `lsp_semantic.inc`
+@after
+The backend writes LLVM IR as text, and `main.c` runs Clang to compile and link it. The interactive installer, in `installer/`, is itself an Ocean program.
+
+--- tests | Tests
+`ctest --test-dir build --output-on-failure` runs the whole suite, which is registered in `CMakeLists.txt`. It combines C unit tests for the scanner, parser, AST, and semantic analysis with Python integration tests in `tests/` that compile Ocean programs, inspect the generated code, and run the results. Other suites cover packages and modules, the build cache, the language server, the standard library, and release packaging. Use `ctest -R name` to run a focused suite while you work.
+
+`tests/README.md` explains the suite conventions. Known gaps are tracked in `tests/pending/`; a skipped pending test documents a missing feature, it doesn't prove that one works. When fixing a bug, add a test that fails without the fix. The parser accepts some syntax that later stages don't support, so test new features all the way through to a running program.
+
+=== contribute/stdlib
+group: Contribute
+title: Working on the standard library
+desc: How the standard library is laid out, how to test changes, and the conventions packages follow.
+
+--- layout | Layout
+Each directory in `ocean-src` is a package, imported by its path from the repository root: the `term/tui` directory is imported as `"term/tui"`. There is no build step: the compiler reads the library's source whenever a program imports it, so you edit `.oc` files and use them immediately.
+
+Packages whose implementation differs between native targets and WebAssembly use `_native.oc` and `_wasm.oc` files. Differences between operating systems and CPUs are handled with inline assembly blocks selected by architecture and platform, which is how `io`, `os`, `time`, and `term` make system calls without C dependencies.
+
+--- testing | Testing a change
+Point a matching compiler at your checkout with `OCEAN_SRC`, then run the Ocean unit tests from the repository root. Tests live next to the code in `_test.oc` files.
+```code Terminal
+export OCEAN_SRC="$PWD"
+ocean test ./... --notty
+ocean test encoding/json io
+```
+@after
+The HTTP tests need permission to open local sockets; they don't contact outside servers. A few packages also have Python harnesses for behavior that needs a real terminal or several processes, in `term/tests`, `term/tui/tests`, `threads/tests`, `time/tests`, and similar directories. Set `OCEAN` to the compiler to use when running them.
+
+--- conventions | Conventions
+Exported names start with an uppercase letter and the rest stay private. Recoverable failures are returned as `Result<T>`; panics are reserved for misuse, such as invalid arguments. Each package directory has a `README.md` describing its API and behavior; keep it up to date along with these website pages.
+
+The `reflect` package is special: it can call compiler primitives that no other package may use, and only when it lives in the configured standard-library directory.
+
+=== contribute/website
+group: Contribute
+title: Working on the website
+desc: Run this website locally, edit documentation pages, and verify their examples.
+
+--- setup | Run the site locally
+The website is built with SvelteKit and Svelte 5 and deployed to Cloudflare Workers. Install Node.js and npm, then install the locked dependencies, generate the Cloudflare types, and start the development server.
+```code Terminal
+npm ci
+npm run gen
+npm run dev
+```
+
+--- content | Where the documentation lives
+Each documentation page is written in a plain-text file in `content/docs/`. Pages appear in the order of the files, sorted by name, and in their order within each file. The script `scripts/build_docs.py` turns these files into `src/lib/docs.ts`, which the site reads to build every page, the sidebar, search, and the previous and next links. Don't edit `docs.ts` by hand; edit the text files and run `npm run docs`.
+
+--- format | The page format
+A page starts with `===` and its URL slug, followed by its group, title, and description. Each section starts with `---`, an identifier, and a title. Plain lines are the section's text; a blank line starts a new paragraph, and backticks mark inline code. A section may contain one code block, written between a line starting with three backticks and the word `code` and a closing line of three backticks, optionally labeled after `code`. After the code block, `@after` begins text shown below the example, `@note` a highlighted callout, `@table` a table (first row is the header, cells separated by `|`, written as `\|` inside a cell), and `@links` a list of `Label -> URL` lines.
+```code Page source
+=== language/example
+group: Language guide
+title: Example page
+desc: One sentence describing the page.
+
+--- intro | Introduction
+Text with `inline code`.
+
+A second paragraph.
+@note
+A callout.
+```
+@after
+Groups must be one of the groups listed in the script. Markdown other than inline code is shown literally, so use `@links` rather than Markdown link syntax.
+
+--- examples | Verify the examples
+`scripts/check_docs.py` compiles every complete Ocean example (any example containing a `package` declaration) with `ocean check`. It uses the `ocean` on your `PATH`, or the compiler named by the `OCEAN` environment variable, and the usual `OCEAN_SRC` setting to choose the library. Lines that control the checker are removed from the published page: `// check: run` runs the example instead of only checking it, each `// expect: TEXT` line gives one expected line of output, `// check: skip` excludes an example that needs input or a network, and `// file: path` splits an example into several files.
+```code Terminal
+python3 scripts/check_docs.py content/docs
+OCEAN=../ocean-c/build/ocean OCEAN_SRC=../ocean-src \
+  python3 scripts/check_docs.py content/docs language/functions
+```
+
+--- validate | Check and build
+Run the type checks and a production build before submitting a change, and look over the changed pages in `npm run preview` at both desktop and phone widths.
+```code Terminal
+npm run docs
+npm run check
+npm run build
+```

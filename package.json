@@ -4,6 +4,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "docs": "python3 scripts/build_docs.py content/docs src/lib/docs.ts",
     "dev": "npx vite dev --host",
     "build": "npx wrangler types && npx vite build",
     "preview": "npm run build && npx wrangler dev",

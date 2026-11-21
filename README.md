@@ -14,13 +14,15 @@ npm run dev
 
 ## Content and structure
 
-- `src/lib/docs.ts` contains documentation content, section outlines, and reading order.
+- `content/docs/*.txt` contains the documentation pages in a plain-text format (see the "Working on the website" docs page). Files are read in name order, which sets the reading order.
+- `scripts/build_docs.py` generates `src/lib/docs.ts` from those files; run `npm run docs` after editing them. Do not edit `docs.ts` by hand.
+- `scripts/check_docs.py` compiles (and, where marked, runs) every complete Ocean example.
 - `src/routes/docs/[...slug]` renders the documentation pages and supplies prerender entries.
 - `src/routes/+page.svelte` contains the home page and switchable code examples.
 - `src/routes/+layout.svelte` supplies navigation, document search, and a keyboard-accessible search dialog.
 - `src/routes/layout.css` contains the responsive ocean-inspired themes.
 
-Add a documentation entry to `docs.ts` to include it in navigation, search, prerendering, and previous/next links. Each section has plain text, an optional code example, an optional explanation after the example, an optional reference table, and an optional callout. Separate paragraphs with blank lines and use backticks for inline code. Content is rendered as text rather than injected HTML.
+A page added to `content/docs` appears in navigation, search, prerendering, and previous/next links after `npm run docs`. Each section has plain text, an optional code example, an optional explanation after the example, an optional reference table, and an optional callout. Separate paragraphs with blank lines and use backticks for inline code. Content is rendered as text rather than injected HTML.
 
 The theme follows the system preference initially; a visitor's explicit choice persists locally and is applied before rendering. Search opens with Ctrl/Cmd+K and closes with Escape.
 
@@ -28,4 +30,8 @@ The theme follows the system preference initially; a visitor's explicit choice p
 
 ## Documentation sources
 
-Content reflects the adjacent `ocean-c/README.md` and the actual `ocean-src/io`, `ocean-src/os`, and `ocean-src/reflect` implementations. Recheck these sources when compiler behavior changes. Do not infer executable support from parser acceptance. Full examples have been validated with the local compiler's `ocean check` command.
+Content is written against the sibling `ocean-c` compiler and `ocean-src` standard library: their READMEs, `skills/ocean/SKILL.md`, the package sources, and behavior observed by running the compiler. Recheck these sources when the compiler or library changes, and don't infer support from parser acceptance alone. Validate examples with:
+
+```sh
+OCEAN=../ocean-c/build/ocean OCEAN_SRC=../ocean-src python3 scripts/check_docs.py content/docs
+```

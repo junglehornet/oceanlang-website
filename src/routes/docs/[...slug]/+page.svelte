@@ -39,7 +39,7 @@
       </table>
      </div>
     {/if}
-    {#if section.code}<Code code={section.code} label={codeLabel(section.code)}/>{/if}
+    {#if section.code}<Code code={section.code} label={section.lang ?? codeLabel(section.code)}/>{/if}
     {#if section.after}<div class="example-explanation"><Prose text={section.after}/></div>{/if}
     {#if section.links}<div class="section-links">{#each section.links as link}<p><a href={link.href} target={/^https?:\/\//i.test(link.href) ? '_blank' : undefined} rel={/^https?:\/\//i.test(link.href) ? 'noopener noreferrer' : undefined}>{link.label}{#if /^https?:\/\//i.test(link.href)}<span class="sr-only"> (opens in a new tab)</span>{/if}</a></p>{/each}</div>{/if}
     {#if section.note}<aside class="callout"><span>↳</span><div><Prose text={section.note}/></div></aside>{/if}

@@ -1,0 +1,698 @@
+=== language/packages-and-imports
+group: Language guide
+title: Packages & imports
+desc: Split a program across files and directories, import other packages, and control what each package exports.
+
+--- packages | One directory, one package
+A package is a directory of `.oc` files. Every file in the directory must start with the same `package` declaration, and together they behave like one unit: functions, types, and globals declared in any of the files can be used from all of them, including private (lowercase) ones. Each subdirectory is a separate package.
+
+The compiler always works on whole packages. Pointing a command at one file, as in `ocean run main.oc`, selects the entire directory containing it. Files whose names end in `_test.oc` are the exception: they hold tests and are only compiled by `ocean test` and `ocean check`.
+
+Only a package named `main` that you build directly becomes a program. Any other package builds into a library object, and a function named `main` in an imported package is just an ordinary function.
+
+--- modules | Modules
+A module is a project: a directory tree with an `ocean.mod` file at its root. The file gives the module a name, usually where its source is hosted, such as `example.com/app`. Packages inside the module are imported by the module name followed by their directory path. Create the file with `ocean mod init example.com/app`; the tooling page describes it in full.
+```code
+// check: run
+// expect: Hello from greeting
+// file: ocean.mod
+module example.com/app
+
+ocean 0.1
+// file: main.oc
+package main;
+
+import "io";
+import "example.com/app/greeting";
+
+func main() {
+    io.Println(greeting.Message());
+}
+// file: greeting/greeting.oc
+package greeting;
+
+func Message() string {
+    return "Hello from " + name();
+}
+
+func name() string {
+    return "greeting";
+}
+```
+@after
+`main.oc` sits at the module root and `greeting/greeting.oc` in a subdirectory. Because `example.com/app/greeting` lies inside the current module, the compiler finds it on disk; nothing has to be published. Inside the module you may also write the shorter module-relative path, `import "greeting";`.
+@links
+Modules and dependencies -> /docs/tooling/packages/
+
+--- exports | Exported and private names
+A top-level name that starts with an uppercase letter is exported: other packages can use it. Anything else is private to its package. In the example above, `greeting.Message` is usable from `main`, but `greeting.name` is not. The rule applies to every kind of declaration: functions, globals, types, struct fields, methods, interfaces, aliases, and enums.
+
+--- import-forms | Import forms
+An import makes a package available in the current file only; each file lists the imports it uses. By default you refer to an imported package by its declared package name, which does not have to match the last part of its path. The exception is a package at the root of another module, which is named after the last part of the module path.
+@table
+Form | Effect
+`import "io";` | Use the package as `io.Println(…)`
+`import "example.com/app/greeting" as hello;` | Choose your own qualifier: `hello.Message()`
+`import . "example.com/app/greeting";` | Use exported names without a qualifier: `Message()`
+`import _ "example.com/app/setup";` | Load and initialize the package without using its names
+@after
+Dot imports save typing but can make it unclear where a name comes from, and two dot-imported packages that export the same name make that name ambiguous. Blank imports are for packages whose global initializers do work you need.
+
+--- resolution | Where imports come from
+The compiler looks for an import path in three places: packages inside the current module, the standard library (in the installation's `src` directory, or wherever `OCEAN_SRC` points), and external modules, which are fetched with Git. External dependencies are covered on the packages and modules tooling page.
+
+--- methods-ownership | Methods belong to their type's package
+Methods can only be declared in the package that defines their receiver type, though they may be in any file of it. You cannot add methods to a type imported from another package. If you need extra behavior for an imported type, define a new type based on it in your package, with `type Local other.Type;`, and give that type methods. An alias, `type Local = other.Type;`, is just another name for the imported type and cannot receive methods.
+
+--- init-order | Initialization order and errors
+Imported packages are initialized before the packages that import them. Inside a package, global variables are initialized file by file in filename order, and in declaration order within each file. Import cycles, two files disagreeing about the package name, conflicting declarations, and use of another package's private names are all compile-time errors.
+
+=== language/strings
+group: Language guide
+title: Strings
+desc: Immutable byte strings, indexing and slicing, building text, byte arrays, and Unicode.
+
+--- basics | What a string is
+A `string` is an immutable sequence of bytes. String literals are stored as UTF-8, so text in any language works, but the string itself knows nothing about characters: `len(text)` counts bytes, and indexing gives you a byte. `text.length` is another way to get the same count.
+
+Because strings are immutable, you never modify one in place. Operations such as concatenation produce a new string, and assigning it to the variable replaces the old one.
+```code
+// check: run
+// expect: 6 104 é
+package main;
+
+import "io";
+
+func main() {
+    word := "héllo";
+    io.Println(len(word), " ", word[0], " ", word[1:3]);
+}
+```
+@after
+`héllo` has five characters but six bytes, because `é` takes two bytes in UTF-8. `word[0]` is the byte `104` (the letter `h`) as an `i8`. Slicing with `word[1:3]` selects bytes 1 and 2, which happen to form `é`. Slicing in the middle of a multi-byte character produces invalid UTF-8, so be careful when working with non-ASCII text.
+
+--- building | Building strings
+`+` joins two strings, and `+=` appends to a string variable. A single byte, such as a character literal, can also be added to either end: `text + '!'`. To turn other values into text, use `io.Sprint`, which formats anything `io.Println` can print, or `io.Sprintf`, which fills `{}` placeholders.
+```code
+// check: run
+// expect: Ocean has 3 seas!
+package main;
+
+import "io";
+
+func main() {
+    count := 3;
+    text := "Ocean has " + io.Sprint(count);
+    text += " seas";
+    text = text + '!';
+    io.Println(text);
+}
+```
+
+--- comparing | Comparing strings
+`==` and `!=` compare the full contents of two strings, so two separately built strings with the same text are equal. `<`, `<=`, `>`, and `>=` order strings byte by byte; see the operators page for the exact rule.
+
+--- slicing | Slicing
+`text[start:end]` produces a new string containing the bytes from index `start` up to, but not including, `end`. Leave out `start` to begin at zero or `end` to go to the end: `text[:3]`, `text[3:]`. The bounds must satisfy `0 <= start <= end <= len(text)`; anything else stops the program with a bounds error.
+
+--- iterating | Iterating over bytes
+A `range` loop over a string visits it one byte at a time, giving the index and the byte. To find a character, compare bytes against character literals.
+```code
+// check: run
+// expect: 2
+package main;
+
+import "io";
+
+func countSpaces(text string) int {
+    count := 0;
+    for (_, b := range text) {
+        if (b == ' ') count++;
+    }
+    return count;
+}
+
+func main() {
+    io.Println(countSpaces("a b c"));
+}
+```
+
+--- bytes | Strings and byte arrays
+When you need to change bytes, copy the string into a byte array, which is a dynamic array of `i8`. Assigning a string to a `[]i8` variable makes an independent copy, and casting the array back with `-> string` copies it again. `text.array()` also returns a copy of the bytes, as a fixed-size array.
+```code
+// check: run
+// expect: Hello
+package main;
+
+import "io";
+
+func main() {
+    text := "hello";
+    bytes: []i8 = text;
+    bytes[0] = 'H';
+    io.Println(bytes -> string);
+}
+```
+@after
+Changes to `bytes` never affect `text`. Printing a byte array directly shows its numbers, such as `[72, 101, 108, 108, 111]`; cast it to `string` to print it as text.
+
+--- no-strings-package | Common string tasks
+There is no separate strings package yet. Tasks such as searching, splitting, and changing case are done with byte loops, slices, and dynamic arrays. For conversions between text and numbers, use the `io` package: `io.Sprint(value)` turns a number into text, while `io.ParseInt(text)` and `io.ParseFloat(text)` read numbers back and report failures as a `Result`.
+```code
+// check: run
+// expect: [ocean sea wave]
+package main;
+
+import "io";
+
+func split(text string, separator i8) []string {
+    parts := make([]string);
+    start := 0;
+    for (i, b := range text) {
+        if (b == separator) {
+            parts.append(text[start:i]);
+            start = i + 1;
+        }
+    }
+    parts.append(text[start:]);
+    return parts;
+}
+
+func main() {
+    io.Println(split("ocean,sea,wave", ','));
+}
+```
+@links
+The io package -> /docs/library/io/
+
+--- c-strings | Strings and C
+Ocean strings are not terminated by a zero byte. When you pass text to a C function, pass `text.data` (a raw pointer to the bytes) and add the terminator yourself, for example `"hello\0".data`. The C interop page covers this in detail.
+
+=== language/collections
+group: Language guide
+title: Arrays
+desc: Fixed-size arrays, growable dynamic arrays, slicing, concatenation, and bounds checking.
+
+--- overview | Two kinds of arrays
+Ocean has two array types, and choosing between them is mostly a question of whether the length can change.
+
+A fixed-size array, `[n]T`, holds exactly `n` elements of type `T`. Its length never changes, and its elements are stored directly in the variable (on the stack, for a local). A dynamic array, `[]T`, can grow and shrink: it stores its elements in heap memory and has methods such as `append` and `pop`.
+
+The brackets always come before the element type. Code written with the older `int[]` and `int[3]` spellings no longer compiles; `ocean fix` updates it.
+
+Both kinds are values. Assigning an array, passing it to a function, or returning it copies every element, so two variables never secretly share the same array. Every array also checks its indexes: reading or writing outside the array stops the program with an error that shows the offending line and a call trace.
+@links
+Compiler & CLI: ocean fix -> /docs/tooling/cli/#section-fix
+
+--- fixed | Fixed-size arrays
+Declare a fixed array with its length in the type: `scores: [3]int;` starts as three zeros. Initialize it with a list in braces; missing elements are filled with zeros. When the length comes from the list itself, write `[...]int{…}`, or let a plain `:=` infer it. The length can also be a runtime value, as in `buffer: [n]int;`, in which case the array is still fixed once created.
+```code
+// check: run
+// expect: 3 [1 2 0] 2 4
+package main;
+
+import "io";
+
+func main() {
+    padded: [3]int = {1, 2};
+    counted := [...]int{4, 5};
+    inferred := {6, 7, 8};
+    n := 4;
+    sized: [n]int;
+    io.Println(len(inferred), " ", padded, " ", len(counted), " ", len(sized));
+}
+```
+
+--- array-param | Accepting arrays of any length
+To write a function that accepts a fixed array of any length, use the parameter type `array<T>`. A `[n]T` of any length can be passed to it. `array<T>` describes arrays but cannot create one: construct a `[n]T` and pass it.
+```code
+// check: run
+// expect: 6 9
+package main;
+
+import "io";
+
+func total(values array<int>) int {
+    sum := 0;
+    for (_, v := range values) {
+        sum += v;
+    }
+    return sum;
+}
+
+func main() {
+    io.Println(total([3]int{1, 2, 3}), " ", total([...]int{4, 5}));
+}
+```
+
+--- dynamic | Dynamic arrays
+A dynamic array, `[]T`, starts empty unless you give it elements. Create one with a literal, `[]int{1, 2}`, with `make([]int)`, or just by declaring `items: []int;`. It grows as you add to it.
+```code
+// check: run
+// expect: [1 2 3 4] 4
+// expect: 4 1 [2 3]
+package main;
+
+import "io";
+
+func main() {
+    items := make([]int);
+    items.append(3, 4);       // [3 4]
+    items.prepend(1);         // [1 3 4]
+    items.add(1, 2);          // insert 2 at index 1: [1 2 3 4]
+    io.Println(items, " ", items.length);
+
+    last := items.pop();      // removes and returns 4
+    first := items.remove(0); // removes and returns 1
+    io.Println(last, " ", first, " ", items);
+}
+```
+@table
+Operation | Effect
+`append(values...)` | Add values at the end
+`prepend(values...)` | Add values at the start
+`add(index, values...)` | Insert values before `index`
+`remove(index)` | Remove and return the element at `index`
+`pop()` | Remove and return the last element
+`array()` | Return a fixed-size copy of the current elements
+`length`, `capacity` | Number of elements, and the number of elements that fit before more memory is needed
+@after
+Removing from an empty array, or with an invalid index, is a bounds error. When a dynamic array runs out of room it at least doubles its capacity, so appending one element at a time is efficient on average.
+
+--- indexing | Indexing and checked reads
+`items[i]` reads or writes element `i`, counting from zero. An index outside the array is a runtime error that stops the program. When an index might be out of range, use the two-value form instead: `value, ok := items[i];` gives the element and `true`, or the type's default value and `false`, without stopping.
+```code
+// check: run
+// expect: 0 false
+package main;
+
+import "io";
+
+func main() {
+    items := []int{10, 20};
+    value, ok := items[5];
+    io.Println(value, " ", ok);
+}
+```
+
+--- slicing | Slicing
+`items[start:end]` copies the elements from `start` up to but not including `end` into a new dynamic array. Either bound may be left out: `items[:2]`, `items[1:]`, `items[:]`. The slice is a separate array, so changing it does not change the original. The bounds must satisfy `0 <= start <= end <= len(items)`.
+
+--- concatenation | Joining arrays with +
+`a + b` produces a new array containing the elements of `a` followed by those of `b`. A single element can be added to either end as well: `items + 5` and `0 + items`. With `+=`, the result replaces the left-hand variable; for dynamic arrays, `items += 5` appends in place.
+```code
+// check: run
+// expect: [1 2 3 4] [0 1 2 5]
+package main;
+
+import "io";
+
+func main() {
+    first := []int{1, 2};
+    joined := first + []int{3, 4};
+    first += 5;
+    io.Println(joined, " ", 0 + first);
+}
+```
+
+--- nested | Arrays of arrays
+Array types read left to right: `[2]int` is "an array of two ints", so `[3][2]int` is "three arrays of two ints". The first index selects one of the three inner arrays. For rows of varying length, use a dynamic array of dynamic arrays, `[][]int`.
+```code
+// check: run
+// expect: 3 2
+// expect: [[1 2] [3 4]]
+package main;
+
+import "io";
+
+func main() {
+    grid: [3][2]int;
+    io.Println(len(grid), " ", len(grid[0]));
+
+    rows := [][]int{[]int{1, 2}, []int{3}};
+    rows[1].append(4);
+    io.Println(rows);
+}
+```
+
+--- literals | Array literals need a type outside assignments
+A brace list on the right of an assignment or declaration takes its type from the variable: `values: []int = {1, 2};`. Everywhere else, such as in a function argument or a `return`, the literal needs its type written in front: `sum([]int{1, 2})`, `return []string{"a"};`.
+@note
+For historical reasons, `[5]int` used as an expression on its own (without braces) creates a dynamic array of five zeros. Use `values: [5]int;` or `[5]int{}` when you want a fixed-size array.
+
+--- data | The size and data fields
+Every array has two low-level fields. `.size` is the number of bytes its elements occupy, so `len(items)` equals `items.size / sizeof(element type)`. `.data` is a raw pointer to the first element, used when passing an array's contents to C code. Indexing through `.data` is not bounds-checked. The memory and C interop pages explain when to use them.
+
+--- free | Releasing a dynamic array early
+A dynamic array's memory is released automatically when its variable goes out of scope. If you are finished with a large array sooner, `free(items)` releases it immediately. Assign a new value, such as `items = {};`, before using the variable again.
+
+=== language/maps
+group: Language guide
+title: Maps
+desc: Built-in hash maps: creating them, reading safely, updating, deleting, and iterating.
+
+--- create | Creating a map
+`map[K]V` is a hash map from keys of type `K` to values of type `V`. Write a map literal with `key: value` pairs. A map declared without an initializer, or made with `make(map[K]V)`, starts empty and is ready to use; there is no separate "nil map" state.
+```code
+// check: run
+// expect: 2 3 2
+package main;
+
+import "io";
+
+func main() {
+    ages := map[string]int{"Ada": 36, "Lin": 28};
+    ages["Lin"] += 1;        // update an entry
+    ages["Kai"] = 3;         // insert a new one
+    delete(ages, "Kai");     // removing a missing key is harmless
+    io.Println(len(ages), " ", ages["Ada"] / 12, " ", ages["Lin"] - 27);
+}
+```
+
+--- reading | Reading safely
+Reading a key with `m[key]` alone expects the key to exist and panics if it does not. When a key might be missing, use the two-value form: `value, found := m[key];` returns the stored value and `true`, or the value type's default and `false`. Neither form adds an entry to the map.
+```code
+// check: run
+// expect: 0 false
+package main;
+
+import "io";
+
+func main() {
+    ages := map[string]int{"Ada": 36};
+    age, found := ages["Grace"];
+    io.Println(age, " ", found);
+}
+```
+
+--- iterate | Iterating
+A `range` loop over a map visits each key, or each key and value. The order is not specified and can differ from insertion order, so sort the keys yourself if order matters. The loop walks a snapshot, so modifying the map inside the loop does not disturb the iteration.
+```code
+package main;
+
+import "io";
+
+func main() {
+    stock := map[string]int{"rope": 3, "sail": 1};
+    for (item, count := range stock) {
+        io.Printfln("{}: {}", item, count);
+    }
+}
+```
+
+--- keys | Keys and values
+Keys are compared with Ocean's normal equality rules: strings and structs by content, pointers by address. Values can be any type, including arrays, structs, and other maps. Type modifiers are prefixes, so `map[string][]int` maps strings to dynamic arrays of integers, while `[]map[string]int` is a dynamic array of maps.
+
+Interface types, including `any`, can be used for keys, values, or both, and then each entry may hold a different concrete type: `map[any]any{1: "one", "two": 2}`. With `any` keys, numbers compare by value, so `1` and `1.0` are the same key.
+
+--- semantics | Copying and limits
+Like arrays, maps are values: assigning or passing a map copies all of its entries. Use a pointer, `*map[K]V`, to share one map. Two maps compare equal with `==` when they hold the same entries.
+
+You cannot take the address of a map entry, because entries may move when the map grows. Printing a map directly with `io.Println` is not supported yet; loop over its entries instead.
+
+=== language/types
+group: Language guide
+title: Structs & methods
+desc: Group data in structs, attach behavior with methods, and create distinct types and aliases.
+
+--- structs | Declaring structs
+A struct groups named fields. Each field is a name followed by a type, and fields with the same type can share a declaration: `x, y int;`. Create a struct value with a literal, listing values in field order or naming the fields you want to set. Fields you leave out get their default values. Read and write fields with a dot.
+```code
+// check: run
+// expect: Ada 37 0
+package main;
+
+import "io";
+
+struct Person {
+    name string;
+    age int;
+    visits int;
+}
+
+func main() {
+    ada := Person{"Ada", 36, 0};
+    lin := Person{name: "Lin"};
+    ada.age++;
+    io.Println(ada.name, " ", ada.age, " ", lin.visits);
+}
+```
+@after
+A struct literal used as a function argument or return value must name its type, `Person{…}`; when assigned to a variable of known type, the type may be omitted: `p: Person = {"Kai", 9, 0};`. Structs can contain any type, including arrays, maps, and other structs. A struct cannot contain itself directly; use a pointer field such as `next *Node` for linked structures.
+
+--- copies | Structs are values
+Assigning a struct copies all of its fields, including any strings, arrays, and maps inside it. The copy and the original are completely independent. To share a struct, use a pointer: `p := &ada;` and then `p.age` reads through it (no explicit `*` is needed for field access).
+
+--- methods | Methods
+A method is a function with a receiver, written in parentheses before the name. A value receiver, `(p Person)`, gets a copy of the struct. A pointer receiver, `(p *Person)`, gets the address of the original and can modify it. You call a pointer-receiver method on an ordinary variable without writing `&`; Ocean takes the address for you.
+```code
+// check: run
+// expect: Hi, I'm Ada (37)
+package main;
+
+import "io";
+
+struct Person {
+    name string;
+    age int;
+}
+
+func (p Person) Greeting() string {
+    return "Hi, I'm " + p.name + " (" + io.Sprint(p.age) + ")";
+}
+
+func (p *Person) Birthday() {
+    p.age++;
+}
+
+func main() {
+    ada := Person{"Ada", 36};
+    ada.Birthday();
+    io.Println(ada.Greeting());
+}
+```
+@after
+Methods follow the same export rule as everything else: `Greeting` is visible to other packages, a lowercase method would not be.
+
+--- value-parameters | Struct parameters
+A struct can declare value parameters in parentheses after its name. They become read-only fields at the front of the struct, set once when the value is created. Later fields can use them, for example as array lengths. This is how you write a struct whose shape is chosen at creation time.
+```code
+// check: run
+// expect: 3 2 7
+package main;
+
+import "io";
+
+struct Grid(width, height int) {
+    cells [height][width]int;
+}
+
+func main() {
+    grid := Grid{3, 2};
+    grid.cells[1][2] = 7;
+    io.Println(grid.width, " ", grid.height, " ", grid.cells[1][2]);
+}
+```
+@after
+`grid.width = 4;` would be a compile-time error: parameters can't change after construction. Because `cells` is `[height][width]int`, it holds `height` rows of `width` integers; see Arrays of arrays on the arrays page.
+
+--- bitfields | Bitfields
+To pack several small values into as few bytes as possible, give a field a size in bits: `name Type : bits;`. Each bitfield stores only that many bits of its value. The type must be an integer type (including `varint(n)` or a type defined from one) or `bool` with a size of 1. Sizes run from 1 to 64 bits and can't exceed the width of the field's type.
+```code
+// check: run
+// expect: 31 8 true -7 4
+package main;
+
+import "io";
+
+struct Pixel {
+    red, green, blue u8 : 5;
+    visible bool : 1;
+    alpha int : 4;
+}
+
+func main() {
+    p: Pixel;
+    p.red = 31;
+    p.green = 40;               // keeps only the low 5 bits: 8
+    p.visible = true;
+    p.alpha = 9;                // a signed 4-bit field holds -8 to 7: reads back -7
+    io.Println(p.red, " ", p.green, " ", p.visible, " ", p.alpha, " ", sizeof(Pixel));
+}
+```
+@after
+Adjacent bitfields share storage. They fill it in order, starting from the lowest bits, until the next one would take the group past 64 bits. An ordinary field between bitfields starts a new group. Here all five fields fit in 20 bits, so the whole struct takes 4 bytes. Writing a value that doesn't fit keeps its low bits and leaves the neighboring fields alone. Reading a signed field sign-extends it.
+
+A bitfield has no address of its own, so `&p.red` is an error, and so is calling a method with a pointer receiver on one. If you write the type as `varint(n)` and then give the field fewer than `n` bits, as in `num varint(6) : 5;`, the compiler warns that the two sizes disagree. Defined types are exempt from the warning, so `type Nibble varint(4);` followed by `low Nibble : 3;` compiles quietly.
+
+--- defined-types | Defining new types
+`type Name Existing;` defines a new type with the same representation as an existing one but its own identity. A `UserID` defined from `int` is not interchangeable with `int` or with another type defined from `int`; converting requires a cast. This catches mix-ups, such as passing a user ID where an order ID is expected. Defined types can have their own methods.
+```code
+// check: run
+// expect: user #42
+package main;
+
+import "io";
+
+type UserID int;
+
+func (id UserID) Label() string {
+    return "user #" + io.Sprint(id -> int);
+}
+
+func main() {
+    id := 42 -> UserID;
+    io.Println(id.Label());
+}
+```
+
+--- aliases | Aliases
+`type Name = Existing;` creates an alias: another name for exactly the same type. Aliases need no casts and share their target's methods. They are useful for shortening long types, such as `type Callback = func(int) bool;`.
+
+=== language/enums
+group: Language guide
+title: Enums & match
+desc: Model values that can be one of several variants, each with its own data, and take them apart with match.
+
+--- declaring | Declaring an enum
+An enum lists the variants a value can be. Each variant can carry its own data: nothing (a unit variant), a list of positional values (a tuple variant), named fields (a record variant), or a fixed value set in the declaration. Variants belong to their enum, so you always write them qualified, as `Shape.Circle`, and two enums can reuse the same variant names.
+```code
+// check: run
+// expect: Shape.Dot
+// expect: Shape.Circle(1.50)
+// expect: Shape.Rect(w: 2, h: 3)
+package main;
+
+import "io";
+
+enum Shape {
+    Dot,
+    Circle(float),
+    Rect{w, h int},
+}
+
+func main() {
+    io.Println(Shape.Dot);
+    io.Println(Shape.Circle(1.5));
+    io.Println(Shape.Rect{w: 2, h: 3});
+}
+```
+@after
+Enums are not integers in disguise. A fixed variant, declared as `One := 1` or `Red: []int = {255, 0, 0}`, is still a variant that carries that value, not a numeric constant. The data inside a variant can't be modified after creation.
+
+--- match | Taking enums apart with match
+`match` checks which variant a value holds and runs the matching arm. Each arm is a pattern, `=>`, and a statement or a block. Patterns can bind the variant's data to names: positional names for a tuple, and field names for a record (or `alias = field` to bind a field under a different name). Use `_` to ignore a position. An arm written as just the enum's name, such as `Shape => …`, is the default and matches anything not handled earlier.
+```code
+// check: run
+// expect: 3.00 6.00 0.00
+package main;
+
+import "io";
+
+enum Shape {
+    Dot,
+    Circle(float),
+    Rect{w, h int},
+}
+
+func area(s Shape) float {
+    match (s) {
+        Shape.Circle(r) => return 3.0 * r * r;
+        Shape.Rect{width = w, height = h} => {
+            return (width * height) -> float;
+        }
+        Shape => return 0.0;
+    }
+}
+
+func main() {
+    io.Println(area(Shape.Circle(1.0)), area(Shape.Rect{w: 2, h: 3}), area(Shape.Dot));
+}
+```
+@after
+The compiler warns when a `match` without a default arm leaves out a variant, so adding a variant later points you to every place that needs updating. When every arm returns, the compiler knows the function can't fall off the end.
+
+--- testing-variants | Checking and extracting a single variant
+To test which variant a value holds without a full `match`, compare it with the bare variant: `shape == Shape.Circle` is true for any circle. Comparing with a complete value, `shape == Shape.Circle(1.0)`, also compares the data.
+
+To pull the data out directly, use an extraction: `radius := shape.(Shape.Circle);`. A tuple with several values unpacks into several names, and a record can be unpacked by field name. Extraction assumes you know the variant: if the value holds a different one, the program stops immediately. Check first, or use `match`.
+```code
+// check: run
+// expect: 7 8 1 9
+package main;
+
+import "io";
+
+enum Event {
+    Load,
+    Move(int, int),
+    Click{x, y int},
+}
+
+func main() {
+    move := Event.Move(7, 8);
+    dx, dy := move.(Event.Move);
+
+    click := Event.Click{x: 1, y: 9};
+    if (click == Event.Click) {
+        x, y := click.(Event.Click{x, y});
+        io.Println(dx, dy, x, y);
+    }
+}
+```
+
+--- methods | Methods on enums
+Enums can have methods, with value or pointer receivers, just like structs. A method may not share its name with a variant or a record field of its enum.
+```code
+// check: run
+// expect: true false
+package main;
+
+import "io";
+
+enum Light { Red, Amber, Green }
+
+func (l Light) CanGo() bool {
+    return l == Light.Green;
+}
+
+func main() {
+    io.Println(Light.Green.CanGo(), Light.Red.CanGo());
+}
+```
+
+--- generic-enums | Generic enums
+An enum can take type parameters, written in angle brackets after its name. When creating a value you supply the type arguments, `Tree<int>.Node(5)`. In patterns and extractions the type arguments can be left out, because they are known from the value being matched. Each set of type arguments makes a distinct type.
+
+--- optional | Optional<T>
+`Optional<T>` is a built-in generic enum for a value that may be absent. It has two variants, `Optional<T>.value(x)` and `Optional<T>.none`. `none` is equal to `null`, so you can assign `null` to an optional and test `opt == null`. An optional declared without a value is `none`.
+
+`hasValue()` reports whether a value is present, and `unwrap()` returns it, panicking if there is none. Use `match` to handle both cases at once.
+```code
+// check: run
+// expect: found 3
+// expect: missing
+package main;
+
+import "io";
+
+func find(items []string, wanted string) Optional<int> {
+    for (i, item := range items) {
+        if (item == wanted) return Optional<int>.value(i);
+    }
+    return null;
+}
+
+func main() {
+    items := []string{"rope", "sail", "oar", "net"};
+    match (find(items, "net")) {
+        Optional.value(index) => io.Println("found ", index);
+        Optional.none => io.Println("missing");
+    }
+    if (!find(items, "anchor").hasValue()) io.Println("missing");
+}
+```
+@after
+The other built-in enum, `Result<T>`, carries either a value or an error message. It is the standard way to report recoverable errors, and has its own section on the errors page.
+@links
+Errors and Result -> /docs/language/errors/

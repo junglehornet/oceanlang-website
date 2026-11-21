@@ -1,4 +1,4 @@
-import { docs } from '$lib/docs';
+import { docs } from '#lib/docs.ts';
 import type { RequestHandler } from './$types';
 
 export const prerender = false;

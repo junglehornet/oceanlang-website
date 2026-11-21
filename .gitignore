@@ -28,3 +28,6 @@ vite.config.ts.timestamp-*
 
 # IDE files
 /.idea
+
+# Python bytecode from the docs scripts
+__pycache__/

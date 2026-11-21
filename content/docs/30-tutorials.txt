@@ -1,0 +1,264 @@
+=== tutorials/checklist
+group: Tutorials
+title: Build a checklist app
+desc: Build an interactive terminal checklist with the term/tui package: a model, keyboard handling, a view, and a timer command.
+
+--- goal | What you will build
+This tutorial builds a full-screen checklist that runs in your terminal. A `>` marks the selected row, `[ ]` and `[x]` show whether each item is done, and a counter tracks how many are finished. You move with the arrow keys (or `j` and `k`), toggle the selected item with Space or Enter, and quit with `q`. Each toggle shows a short message that disappears by itself after a moment. When you quit, your shell screen comes back and the program prints a summary.
+
+Along the way you will use the `term/tui` package's model–update–view loop: a struct that holds the app's state, an `Update` method that reacts to key presses, a `View` method that draws the screen, and a command that runs a timer in the background. You should be comfortable with structs, methods, and dynamic arrays from the language guide.
+
+--- setup | Set up the project
+Create a directory for the program and initialize a module in it. Everything goes in a single file, `main.oc`.
+```code Terminal
+mkdir checklist
+cd checklist
+ocean mod init example.com/checklist
+```
+@note
+`term/tui` needs a real terminal and native threads, so run the app directly in a terminal window. It can't be compiled for WebAssembly.
+
+--- loop | How a tui program works
+A `term/tui` program never prints to the screen itself. Instead, you describe the whole screen as a string and let the framework draw it. Your app's state lives in a value called the model, which has three methods:
+```code
+// check: skip
+// Provided by term/tui. You don't declare this yourself.
+interface Model {
+    Init() Cmd;
+    Update(message Msg) (Model, Cmd);
+    View() string;
+}
+```
+@after
+The framework calls `Init` once at startup and draws whatever `View` returns. Then it waits for something to happen, such as a key press, a window resize, or a timer firing, and hands it to `Update` as a message. `Update` returns the new model, and the framework redraws. That cycle repeats until the app quits.
+
+`Update` and `Init` also return a command: a function the framework runs in the background, whose result comes back later as another message. This is how a tui program waits or does slow work without freezing the screen. `Msg` is just `any`, so any value can be a message, and `Cmd` is `func() Msg`.
+
+Your struct satisfies `Model` simply by having these three methods; no declaration is needed.
+
+--- state | Define the state
+Start `main.oc` with the package, the imports, and the types. An `Item` has a label and a done flag. `Checklist` is the model: the items, the index of the selected row, and the message shown after a toggle.
+
+The `revision` field and the `clearNoticeMsg` type are for clearing that message later. Each toggle will start a timer, and when the timer fires it sends back a `clearNoticeMsg`. The revision number tells `Update` whether the message it is about to clear is still the latest one.
+```code
+// check: skip
+package main;
+
+import "io";
+import "term/tui";
+import "time";
+
+struct Item { Label string; Done bool; }
+struct Checklist {
+    items []Item;
+    cursor int;
+    notice string;
+    revision int;
+}
+struct clearNoticeMsg { revision int; }
+```
+
+--- initial | The starting model
+`initialModel` builds the checklist the app starts with. Fields that aren't set get their default values, so every item starts unchecked, the cursor starts on the first row, and there is no notice.
+
+`Init` has no work to do at startup, so it returns `tui.NoCmd`, the command that does nothing. Note that it returns `tui.NoCmd` itself, without parentheses: a command is a function value, and the framework is the one that calls it.
+```code
+// check: skip
+func initialModel() Checklist {
+    return Checklist{items: []Item{
+        Item{Label: "Learn the model/update/view loop"},
+        Item{Label: "Toggle a checklist item"},
+        Item{Label: "Write a terminal app in Ocean"}
+    }};
+}
+
+func (model Checklist) Init() tui.Cmd { return tui.NoCmd; }
+```
+
+--- update | React to keys in Update
+`Update` uses a type switch to see what kind of message arrived. Key presses arrive as `tui.KeyMsg`. Its `Key` field names special keys such as `up`, `space`, or `ctrl+c`, and its `Text` field holds the character for ordinary keys such as `q` or `j`.
+
+The quit check comes first, so the app can always be closed. In the terminal's raw mode, Ctrl+C is just another key, so it needs handling explicitly. Returning `tui.Quit` asks the framework to shut down cleanly and restore the terminal. The movement branches only change `cursor` when there is room, so the selection can't run off either end of the list.
+
+Toggling flips the selected item's `Done` field, sets the notice, and bumps the revision. It then returns a `tui.Tick` command that will deliver a `clearNoticeMsg` carrying that revision about 0.9 seconds later. When that message comes back, the notice is cleared, but only if no newer toggle has happened since. Without that check, a timer from an earlier toggle could erase a newer message early.
+
+`Checklist` uses value receivers, so `Update` changes its own copy of the model. Returning that copy is what makes the change take effect.
+```code
+// check: skip
+func (model Checklist) Update(message tui.Msg) (tui.Model, tui.Cmd) {
+    switch (event := message.(type)) {
+        case tui.KeyMsg:
+            if (event.Alt) return model, tui.NoCmd;
+            if (event.Key == "ctrl+c" || event.Text == "q") return model, tui.Quit;
+            if (len(model.items) == 0) return model, tui.NoCmd;
+
+            if (event.Key == "up" || event.Text == "k") {
+                if (model.cursor > 0) model.cursor--;
+            } else if (event.Key == "down" || event.Text == "j") {
+                if (model.cursor + 1 < len(model.items)) model.cursor++;
+            } else if (event.Key == "space" || event.Key == "enter") {
+                index := model.cursor;
+                model.items[index].Done = !model.items[index].Done;
+                model.notice = model.items[index].Done ? "Item checked." : "Item unchecked.";
+                model.revision++;
+                return model, tui.Tick(900 * time.Millisecond, clearNoticeMsg{model.revision});
+            }
+        case clearNoticeMsg:
+            if (event.revision == model.revision) model.notice = "";
+        case tui.EOFMsg:
+            return model, tui.Quit;
+    }
+    return model, tui.NoCmd;
+}
+```
+@after
+Messages the app doesn't care about, such as window resizes, reach the final `return` and leave the model unchanged. `tui.EOFMsg` means the terminal's input has closed; quitting is the sensible response.
+@note
+Never call `time.Sleep` inside `Update`. It would freeze the whole app, input and drawing included. Waiting is what commands such as `tui.Tick` are for: they run on a background thread while the app stays responsive.
+
+--- view | Draw the screen in View
+`View` turns the model into the text of the whole screen: a title, a row for each item, the progress count, the notice, and a line of help. Each row combines the cursor marker and the checkbox, so the selection and the check marks are drawn independently. The notice gets its own line even when empty, so the help text stays in the same place while notices come and go.
+
+`completed` is a small helper that counts finished items. `View` is used again after the app ends to print the summary.
+```code
+// check: skip
+func (model Checklist) completed() int {
+    count := 0;
+    for (i := 0; i < len(model.items); i++) {
+        if (model.items[i].Done) count++;
+    }
+    return count;
+}
+
+func (model Checklist) View() string {
+    text := "Ocean checklist\n\n";
+    for (i := 0; i < len(model.items); i++) {
+        cursor := i == model.cursor ? "> " : "  ";
+        checkbox := model.items[i].Done ? "[x] " : "[ ] ";
+        text += cursor + checkbox + model.items[i].Label + "\n";
+    }
+    if (len(model.items) == 0) text += "No items yet.\n";
+    text += "\nCompleted: " + io.Sprint(model.completed()) + "/" + io.Sprint(len(model.items));
+    text += "\n" + model.notice;
+    text += "\n\nUp/Down or j/k: move | Space/Enter: toggle | q: quit";
+    return text;
+}
+```
+@after
+`View` builds a string and returns it; it never prints. While the app is running, the framework owns the terminal, so anything printed with `io.Println` would fight with the drawing. Turning numbers into text with `io.Sprint` is fine, because it only returns a string.
+
+--- main | Start the program
+`main` creates the program with the starting model and runs it. `AltScreen: true` draws the app on the terminal's alternate screen, the same way full-screen tools such as editors do, and gives you back your normal shell screen when it exits. Keep the program in one variable and don't copy it once it is running.
+
+`Run` blocks until the app quits, then returns the final model. Its declared type is the `tui.Model` interface, so `final.(Checklist)` gets the concrete checklist back. By the time `Run` returns, the terminal has been restored, so printing the summary is safe.
+```code
+// check: skip
+func main() {
+    program := tui.NewProgram(initialModel(), tui.Options{AltScreen: true});
+    final := program.Run().unwrap();
+    checklist := final.(Checklist);
+    io.Printfln("Checked {} of {} items.", checklist.completed(), len(checklist.items)).unwrap();
+}
+```
+
+--- complete | The complete program
+Here is the whole of `main.oc`. If you built it up piece by piece, compare against this; otherwise copy it as is.
+```code
+package main;
+
+import "io";
+import "term/tui";
+import "time";
+
+struct Item { Label string; Done bool; }
+struct Checklist {
+    items []Item;
+    cursor int;
+    notice string;
+    revision int;
+}
+struct clearNoticeMsg { revision int; }
+
+func initialModel() Checklist {
+    return Checklist{items: []Item{
+        Item{Label: "Learn the model/update/view loop"},
+        Item{Label: "Toggle a checklist item"},
+        Item{Label: "Write a terminal app in Ocean"}
+    }};
+}
+
+func (model Checklist) Init() tui.Cmd { return tui.NoCmd; }
+
+func (model Checklist) Update(message tui.Msg) (tui.Model, tui.Cmd) {
+    switch (event := message.(type)) {
+        case tui.KeyMsg:
+            if (event.Alt) return model, tui.NoCmd;
+            if (event.Key == "ctrl+c" || event.Text == "q") return model, tui.Quit;
+            if (len(model.items) == 0) return model, tui.NoCmd;
+
+            if (event.Key == "up" || event.Text == "k") {
+                if (model.cursor > 0) model.cursor--;
+            } else if (event.Key == "down" || event.Text == "j") {
+                if (model.cursor + 1 < len(model.items)) model.cursor++;
+            } else if (event.Key == "space" || event.Key == "enter") {
+                index := model.cursor;
+                model.items[index].Done = !model.items[index].Done;
+                model.notice = model.items[index].Done ? "Item checked." : "Item unchecked.";
+                model.revision++;
+                return model, tui.Tick(900 * time.Millisecond, clearNoticeMsg{model.revision});
+            }
+        case clearNoticeMsg:
+            if (event.revision == model.revision) model.notice = "";
+        case tui.EOFMsg:
+            return model, tui.Quit;
+    }
+    return model, tui.NoCmd;
+}
+
+func (model Checklist) completed() int {
+    count := 0;
+    for (i := 0; i < len(model.items); i++) {
+        if (model.items[i].Done) count++;
+    }
+    return count;
+}
+
+func (model Checklist) View() string {
+    text := "Ocean checklist\n\n";
+    for (i := 0; i < len(model.items); i++) {
+        cursor := i == model.cursor ? "> " : "  ";
+        checkbox := model.items[i].Done ? "[x] " : "[ ] ";
+        text += cursor + checkbox + model.items[i].Label + "\n";
+    }
+    if (len(model.items) == 0) text += "No items yet.\n";
+    text += "\nCompleted: " + io.Sprint(model.completed()) + "/" + io.Sprint(len(model.items));
+    text += "\n" + model.notice;
+    text += "\n\nUp/Down or j/k: move | Space/Enter: toggle | q: quit";
+    return text;
+}
+
+func main() {
+    program := tui.NewProgram(initialModel(), tui.Options{AltScreen: true});
+    final := program.Run().unwrap();
+    checklist := final.(Checklist);
+    io.Printfln("Checked {} of {} items.", checklist.completed(), len(checklist.items)).unwrap();
+}
+```
+
+--- run | Run it
+Check the program, then run it in your terminal. To keep a copy, build an executable afterwards.
+```code Terminal
+ocean check .
+ocean run .
+ocean build . -o checklist
+```
+@after
+The app opens with the cursor on the first item and the counter at `0/3`. Press Space: the first row becomes `[x]`, the counter reads `1/3`, and "Item checked." appears and then fades away. Press Down and then Enter to check the second item, then `k` and Space to uncheck the first. The counter shows `1/3` again. Holding Up or Down at either end of the list leaves the cursor where it is. Press `q` and your shell screen returns with the line `Checked 1 of 3 items.`
+
+The checklist lives only in memory, so each run starts again at `0/3`.
+
+--- extend | Ideas for extending it
+Let the user add items: on `a`, switch the model into an "adding" mode where typed characters (from `event.Text`) build up a new label, Enter appends it to `items`, and Escape cancels. Add deletion with the dynamic array's `remove` method, keeping `cursor` inside the list afterwards. Handle `tui.WindowSizeMsg` to lay out the view for the terminal's width. To save the list between runs, write a command that writes the items to a file and returns a message reporting how it went.
+@links
+The term/tui package -> /docs/library/term/tui/
+Dynamic arrays -> /docs/language/collections/

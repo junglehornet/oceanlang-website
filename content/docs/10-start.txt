@@ -1,0 +1,130 @@
+=== getting-started
+group: Start here
+title: Get started with Ocean
+desc: Install the compiler and standard library, then write, check, run, and build your first program.
+
+--- overview | How Ocean fits together
+Ocean is a compiled, statically typed language. The compiler, `ocean`, reads your `.oc` source files, checks them, and translates them to LLVM IR as text. It then hands that IR to Clang, which produces a native executable for your machine. You therefore need Clang installed even though you never call it yourself; LLVM's development libraries are not required.
+
+The standard library is shipped as Ocean source code, not as a precompiled library. When you build a program, the compiler reads the library packages that program imports and compiles them along with your code. An installation therefore has two parts: the `ocean` executable in a `bin` directory, and the library sources in a sibling `src` directory.
+
+Ocean runs on Linux (x86-64, AArch64, and RISC-V64), macOS (x86-64 and Apple silicon), and Windows (x86-64 and AArch64). It can also produce WebAssembly modules for a JavaScript host.
+@note
+Ocean is under active development. These pages describe the current compiler and standard library; details can still change between releases.
+
+--- installer | Install with the installer
+The easiest way to install Ocean is the interactive installer attached to each GitHub release. Open the releases page, pick a release, and download the asset named `ocean-installer_<tag>_<arch>-<os>.tar` for your system. `<arch>` is `x86_64`, `aarch64`, or `riscv64`; `<os>` is `linux`, `macos`, or `windows`. Windows releases also offer `.zip` copies. Avoid the `ocean-c_…` assets: those contain only the bare compiler.
+
+Each archive holds a single program, `ocean-installer` (or `ocean-installer.exe` on Windows). Extract it and run it from a terminal. The installer needs Git, which it uses to read release tags and fetch the matching standard library.
+```code Terminal
+# Linux and macOS
+tar -xf ocean-installer_<tag>_<arch>-<os>.tar
+./ocean-installer
+
+# Windows (PowerShell)
+.\ocean-installer.exe
+```
+@after
+The installer asks four questions:
+
+1. Which version to install. `latest` picks the newest stable release, `latest-nightly` picks the newest nightly build, and you can also type an exact tag. Neither option falls back to the other channel.
+
+2. Where to install. You can choose a system location (`/usr/local/lib/ocean` on Unix, Program Files on Windows), a per-user location (`~/.local/lib/ocean`, or LocalAppData on Windows), or any absolute path. It asks for administrator rights only if the location needs them.
+
+3. How to get Clang and the native libraries. You can skip this step, let your system package manager install them (apt, dnf, pacman, zypper, apk, Homebrew, MSYS2, or winget), or install a self-contained bundle with Clang, a linker, libffi, and libcurl into the Ocean directory. The bundle does not need administrator access. On macOS, Apple's Command Line Tools are still required.
+
+4. Whether to add Ocean to your `PATH`. Bash, Zsh, Fish, csh, and other POSIX shells are supported, as is the Windows user or machine environment.
+
+When it finishes, open a new terminal and run `ocean --version`. The output shows the release, the compiler commit it was built from, and the build date.
+@links
+Ocean releases on GitHub -> https://github.com/ocean-foundation/ocean-c/releases
+
+--- releases | Stable releases and nightlies
+Stable releases are tagged on the compiler's `stable` branch. Nightly builds are tagged `nightly-YYYY.MM.DD`. Every day at midnight UTC, the release automation compares the `main` branches of the compiler and standard-library repositories with the last nightly. If either one changed, it tags both repositories and publishes a prerelease. The tag is named after the day that just ended, so the run at midnight on December 1 produces `nightly-2026.11.30`. If nothing changes, a fresh nightly is still built after 30 days.
+
+A compiler release and the standard library with the same tag are designed to be used together. The installer always pairs them correctly. If you assemble an installation yourself, use the same tag for both.
+
+--- source | Build from source
+To build Ocean yourself, you need CMake 4.2 or newer, a C compiler that supports C23, the libffi development headers and library, Clang on your `PATH`, and Python 3 (used by the test suite). Clone the compiler, `ocean-c`, and the standard library, `ocean-src`, side by side in the same parent directory. The build looks for the library at `../ocean-src` by default.
+```code Terminal
+git clone https://github.com/ocean-foundation/ocean-c.git
+git clone https://github.com/ocean-foundation/ocean-src.git
+cd ocean-c
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+@after
+The C compiler builds the Ocean compiler itself; Clang is what the Ocean compiler later uses to turn your programs into executables. You need both, even if your C compiler is also Clang.
+
+The result is `build/ocean`. A compiler that is run straight out of the build directory cannot find the standard library on its own, so either install it (next section) or set `OCEAN_SRC` to your `ocean-src` checkout before running it.
+
+On Windows, build from an MSYS2 CLANG64 shell (or CLANGARM64 on ARM) with Clang, CMake, Ninja, Make, and the matching libffi package installed. The Clang on your `PATH` must target the Windows GNU/MinGW environment.
+
+--- install | Install a source build
+`cmake --install` copies the compiler to `<prefix>/bin/ocean` and the standard library to `<prefix>/src`. A compiler finds its library by looking in `../src` relative to its own executable, so an installed compiler works from any directory without further configuration.
+```code Terminal
+cmake --install build --prefix "$HOME/.local/lib/ocean"
+export PATH="$HOME/.local/lib/ocean/bin:$PATH"
+ocean --version
+```
+@after
+Add the `export` line to your shell's startup file to make it permanent.
+
+Two settings control which library is used. The CMake option `OCEAN_STANDARD_LIBRARY_SOURCE` chooses which library directory is copied at install time; it defaults to the sibling `../ocean-src`. The environment variable `OCEAN_SRC` tells a running compiler to use a different library directory than its installed copy, which is handy when you are working on the library itself.
+
+--- first-program | Write your first program
+Make a new, empty directory for the program. Inside it, run `ocean mod init` to create an `ocean.mod` file, which marks the directory as the root of a module (a project). Then save the following as `main.oc`.
+```code
+// check: run
+// expect: Hello, Ocean!
+package main;
+
+import "io";
+
+func main() {
+    io.Println("Hello, Ocean!");
+}
+```
+@after
+Each line has a job:
+
+`package main;` says which package this file belongs to. Every Ocean file starts with a package declaration, and a package named `main` is the one that becomes a program.
+
+`import "io";` makes the standard `io` package available in this file. Its functions are then written with an `io.` prefix.
+
+`func main() { … }` declares the function that runs when the program starts. `io.Println` prints its arguments followed by a newline.
+
+Statements end with a semicolon. Strings use double quotes.
+@note
+Ocean builds whole directories, not single files: every `.oc` file in a directory is part of the same package. Keep each program in its own directory so that unrelated files don't get compiled together.
+
+--- check-run-build | Check, run, and build
+From the program's directory, use these three commands. The `.` means "the package in the current directory".
+```code Terminal
+ocean check .
+ocean run .
+ocean build . -o hello
+./hello
+```
+@after
+`ocean check` compiles the program all the way to native code without running it or leaving any files behind, and reports errors and warnings. It is the fastest way to find out whether your code is valid.
+
+`ocean run` builds a temporary executable, runs it, and deletes it. Anything after the directory is passed to your program as arguments: `ocean run . first second`.
+
+`ocean build` writes an executable you can keep. Without `-o`, the file is named after the directory.
+
+If the compiler reports that it cannot find `io`, it cannot locate the standard library: check that the library was installed next to the compiler, or set `OCEAN_SRC` to the library's directory.
+
+--- agent-skill | Coding with an AI agent
+The compiler repository contains a skill file for coding agents that summarizes Ocean's syntax, tooling, and libraries. Save it as `ocean/SKILL.md` in your agent's skills directory. It tracks the `main` branch, so download it again when you update the compiler.
+@links
+View the Ocean agent skill -> https://github.com/ocean-foundation/ocean-c/blob/main/skills/ocean/SKILL.md
+Download SKILL.md -> https://raw.githubusercontent.com/ocean-foundation/ocean-c/main/skills/ocean/SKILL.md
+
+--- next | Where to go next
+Read the language guide in order: it starts with the basic syntax and builds up to generics, memory, and C interop. If you prefer to learn by doing, the tutorial walks through a complete interactive program.
+@links
+Language guide: syntax basics -> /docs/language/basics/
+Tutorial: build a checklist app -> /docs/tutorials/checklist/
+Compiler commands -> /docs/tooling/cli/

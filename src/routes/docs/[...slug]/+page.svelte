@@ -1,8 +1,8 @@
 <script lang="ts">
- import Code from '$lib/components/Code.svelte';
- import Prose from '$lib/components/Prose.svelte';
- import Inline from '$lib/components/Inline.svelte';
- import type { Doc } from '$lib/docs';
+ import Code from '#lib/components/Code.svelte';
+ import Prose from '#lib/components/Prose.svelte';
+ import Inline from '#lib/components/Inline.svelte';
+ import type { Doc } from '#lib/docs.ts';
  let { data }: {data: {doc:Doc; previous?:Doc; next?:Doc}} = $props();
  function codeLabel(code: string) {
   if (code.startsWith('// In the docs array')) return 'TypeScript';
@@ -39,7 +39,7 @@
       </table>
      </div>
     {/if}
-    {#if section.code}<Code code={section.code} label={codeLabel(section.code)}/>{/if}
+    {#if section.code}<Code code={section.code} label={section.lang ?? codeLabel(section.code)}/>{/if}
     {#if section.after}<div class="example-explanation"><Prose text={section.after}/></div>{/if}
     {#if section.links}<div class="section-links">{#each section.links as link}<p><a href={link.href} target={/^https?:\/\//i.test(link.href) ? '_blank' : undefined} rel={/^https?:\/\//i.test(link.href) ? 'noopener noreferrer' : undefined}>{link.label}{#if /^https?:\/\//i.test(link.href)}<span class="sr-only"> (opens in a new tab)</span>{/if}</a></p>{/each}</div>{/if}
     {#if section.note}<aside class="callout"><span>↳</span><div><Prose text={section.note}/></div></aside>{/if}

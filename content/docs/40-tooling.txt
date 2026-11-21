@@ -1,0 +1,335 @@
+=== tooling/cli
+group: Tooling
+title: Compiler & CLI
+desc: Every ocean command and option, how builds are cached, static linking, diagnostics, and environment variables.
+
+--- commands | Commands at a glance
+The compiler is a single program, `ocean`. (A build from source also produces `ocean-c`, which behaves identically.) Most commands take a location: a package directory, or a file, which selects the directory containing it. The location defaults to the current directory where it is optional.
+@table
+Command | What it does
+`ocean check [location]` | Compile everything without running or writing output, reporting errors and warnings
+`ocean run [location] [args…]` | Build a temporary executable, run it with the given arguments, then delete it
+`ocean build [location]` | Build an executable (for a `main` package) or a library object
+`ocean test [locations…]` | Build and run a package's tests
+`ocean mod init [name]` | Create `ocean.mod` in the current directory
+`ocean fix [locations…]` | Rewrite old postfix type syntax to the current prefix syntax, in place
+`ocean clean --cache` | Delete the build cache
+`ocean check --lsp` | Start the language server for editors
+`ocean --version` | Show the version, commit, and build date (`-v` also works)
+
+--- check | ocean check
+`ocean check` runs the whole compilation pipeline, including code generation and a trial native link, but then discards the result. A program that passes `check` builds with the same compiler and toolchain. It also checks the package's test files, without running them, and exits with a nonzero status if anything fails.
+
+Because it goes all the way to native code, `check` needs Clang, just like `build`.
+
+--- run | ocean run
+`ocean run` builds the program into a private temporary directory, runs it in your current directory with your terminal's input and output, and removes it afterward, even if the program fails or is interrupted. Its exit status is the program's exit status.
+
+Arguments after the location go to your program. The compiler's own build options (`-o`, `--check`, `--emit-llvm`) are rejected by `run`; to pass a string that looks like one of them to your program, put it after `--`, which ends option parsing.
+```code Terminal
+ocean run . input.txt --verbose
+ocean run ./tools/report -- -o literal-argument
+```
+
+--- build | ocean build
+For a `main` package, `ocean build` produces an executable named after the package directory, or the name given with `-o`. For any other package it produces a native library object, `<package>.o`, which can be linked into other programs. If compilation or linking fails, the previous output file is left untouched.
+@table
+Option | Effect
+`-o path` | Choose the output file
+`--check` | Same as `ocean check`: build everything, write nothing
+`--emit-llvm` | Write the generated LLVM IR as a single text file (default `a.ll`) instead of compiling it
+`--static`, `-s` | Link the executable statically (also accepted by `run`)
+@after
+Static linking needs static versions of the system libraries (and of libffi or libcurl if your program uses them) to be installed; otherwise the link fails. It only applies to `main` packages.
+
+On Windows, library objects are COFF archives, and building one requires `llvm-ar` on your `PATH`.
+
+--- fix | ocean fix
+Ocean writes type modifiers before the type they modify: `[]int`, `[3]int`, `*T`, and `buffer<int, 4>`. Earlier versions put them after the type (`int[]`, `int[3]`, `T*`, `buffer<int>[4]`). That syntax is now an error, and the message names the replacement, such as "Square brackets go before the type for an array. Did you mean '[]int'?".
+
+`ocean fix` updates old code for you. It rewrites every old-style type in the given packages in place, including `_test.oc` files, and reports how many types it changed in each file. A location is a package directory, a single `.oc` file, or `dir/...` for every package below `dir`. With no location, it fixes the current directory.
+```code Terminal
+ocean fix ./...
+```
+@after
+Nested array sizes switch order, so the meaning stays the same: `int[2][3]` becomes `[3][2]int`, three arrays of two integers. The command leaves everything outside the rewritten types untouched, so you can run it again safely. Running it a second time changes nothing.
+
+--- diagnostics | Errors and warnings
+Diagnostics show the file, line and column, the source line, and a caret pointing at the problem. Errors stop the build; warnings, such as a function that can reach its end without returning a value or a `match` that misses a variant, do not. Errors are red and warnings yellow when the output is a terminal. Set `NO_COLOR=1` to turn color off, or `CLICOLOR_FORCE=1` to force it on when the output is redirected.
+
+--- cache | The build cache
+Builds are cached. The compiler keeps one compiled object per package, plus a shared support object, in `~/.cache/ocean-build`. On the next build, packages whose sources (and dependencies' sources) haven't changed are reused, and if nothing changed at all the compiler only relinks. Parsing and checking still run every time, so you always get current diagnostics.
+
+The cache key covers the source files, the compiler version, the toolchain, and the environment, so it is safe to leave on. Set `OCEAN_BUILD_CACHE` to another directory to move it, or to `off` to disable it. `ocean clean --cache` empties it. Downloaded module sources are kept separately and are not removed.
+
+--- environment | Environment variables
+@table
+Variable | Purpose
+`OCEAN_SRC` | Use this standard-library directory instead of the installed one
+`OCEAN_BUILD_CACHE` | Build cache directory, or `off`
+`OCEAN_MOD_CACHE` | Where downloaded modules are stored (default `~/.cache/ocean/modules`)
+`OCOS`, `OCARCH` | Set both to `js` and `wasm` to target WebAssembly
+`NO_COLOR`, `CLICOLOR_FORCE` | Turn colored diagnostics off or force them on
+`SOURCE_DATE_EPOCH` | Fix the build timestamp when building the compiler reproducibly
+
+--- toolchain | What the compiler needs
+The compiler emits LLVM IR as text and runs Clang to compile and link it, so Clang must be on your `PATH` for `check`, `build`, `run`, and `test`. Programs are linked with libffi when they need it (for example, for C variadic calls). Programs that import `net/http` also need libcurl. Programs that use threads are linked with the threading runtime automatically.
+
+=== tooling/packages
+group: Tooling
+title: Modules & dependencies
+desc: The ocean.mod file, depending on other modules through Git, local replacements, and how imports are resolved.
+
+--- mod-file | The ocean.mod file
+A module is a directory tree with an `ocean.mod` file at its root. Run `ocean mod init NAME` to create one; without a name, the current directory's name is used, and an existing file is never overwritten. By convention, the name is the address where the module's repository lives, such as `github.com/you/project`.
+```code ocean.mod
+module github.com/example/application
+
+ocean 0.1
+
+require (
+    github.com/example/collections v1.2.3
+)
+
+replace github.com/example/collections => ../collections
+```
+@after
+`module` names the module. `ocean` records the language version. `require` lists dependencies and the version of each, which is a Git tag or branch name. `replace` substitutes a different source for a dependency: a local directory (which must contain its own `ocean.mod`) or another module and version. `require` and `replace` can be written on one line or as parenthesized blocks. Paths may be quoted, and `//` starts a comment. A `go <version>` directive is an error.
+
+--- external | External modules
+To use another module, add it to `require` and import its packages by their full path, for example `import "github.com/example/collections/list";`. The first build downloads the repository with Git over HTTPS and stores it in `~/.cache/ocean/modules/<module>@<version>`, where later builds reuse it. `OCEAN_MOD_CACHE` moves this directory.
+
+Modules are fetched directly from their Git repositories; there is no central module proxy. An import of the form `host/owner/repository/...` that isn't listed in `require` is fetched from the repository's default branch, which is convenient for experiments, but declare versions for anything you want to build reproducibly.
+
+--- local | Working on two modules at once
+`replace` with a local path is the way to develop a library and an application together: the application builds against your working copy of the library instead of a downloaded version.
+```code ocean.mod
+module example.com/app
+
+ocean 0.1
+
+require example.com/lib v0.1.0
+replace example.com/lib => ../lib
+```
+
+--- resolution | How an import is found
+For each import path, the compiler checks, in order: packages inside the current module (by full path, or by a path relative to the module root), the standard library, and the module's dependencies. The standard library lives in the `src` directory next to the compiler's `bin` directory, unless `OCEAN_SRC` points elsewhere.
+
+--- target-files | Platform-specific files
+A file whose name ends in `_native.oc` is compiled only for native targets, and one ending in `_wasm.oc` only for WebAssembly. Test files use `_native_test.oc` and `_wasm_test.oc`. All other files are shared. The selection happens before anything else, so the two variants can declare the same functions. For differences between individual operating systems or CPUs, use inline assembly selectors instead.
+
+=== tooling/testing
+group: Tooling
+title: Testing
+desc: Write unit tests with the testing package and run them with ocean test.
+
+--- writing | Writing a test
+Tests live in files whose names end in `_test.oc`, next to the code they test. A test is a top-level function whose name starts with `Test` and that takes exactly one parameter of type `*testing.T`. Use the `T` to report failures.
+```code
+// file: ocean.mod
+module example.com/arithmetic
+
+ocean 0.1
+// file: arithmetic.oc
+package arithmetic;
+
+func Add(a, b int) int {
+    return a + b;
+}
+// file: arithmetic_test.oc
+package arithmetic;
+
+import "testing";
+
+func TestAdd(t *testing.T) {
+    if (Add(2, 3) != 5) {
+        t.Errorf("Add(2, 3) = {}, want 5", Add(2, 3));
+    }
+}
+```
+@after
+Run the tests with `ocean test` from the package directory. Test files are ignored by `ocean build` and `ocean run`, so test code never ends up in your program.
+
+A test file that declares the same package as the code can use its private names. A test file that declares `package arithmetic_test;` instead is an external test: it must import the package and can only use what it exports, which is a good way to test the public API. Both kinds can sit in the same directory.
+
+--- t-methods | Reporting results
+@table
+Method | Effect
+`Error(values…)`, `Errorf(format, values…)` | Record a failure and a message; the test keeps running
+`Fatal(values…)`, `Fatalf(format, values…)` | Record a failure and stop this test immediately
+`Fail()`, `FailNow()` | Mark the test failed, without a message; `FailNow` also stops it
+`Log(values…)`, `Logf(format, values…)` | Record a message, shown when the test fails or with `-v`
+`Skip(values…)`, `Skipf(…)`, `SkipNow()` | Stop the test and report it as skipped
+`Failed()`, `Skipped()`, `Name()` | Query the test's state and full name
+`Cleanup(func())` | Register a function to run when the test and its subtests finish
+`Run(name, func(*testing.T)) bool` | Run a subtest; returns whether it passed
+`Parallel()` | Let this test run in parallel with others
+@after
+Format strings use `{}` placeholders, as in `io.Printf`. Stopping a test runs its deferred calls and cleanup functions, and the other tests continue. A panic inside a test fails that test only. Call `Fatal` and `Skip` only from the test's own thread, not from threads the test starts.
+
+--- subtests | Subtests and table tests
+`t.Run` runs a named subtest, which is handy for checking many cases with one loop. Subtest names are joined to the parent's with a slash in reports, such as `TestAdd/negative`, and a failing subtest fails its parent.
+```code
+// file: ocean.mod
+module example.com/arithmetic
+
+ocean 0.1
+// file: arithmetic.oc
+package arithmetic;
+
+func Add(a, b int) int {
+    return a + b;
+}
+// file: arithmetic_test.oc
+package arithmetic;
+
+import "testing";
+
+struct addCase {
+    name string;
+    a, b, want int;
+}
+
+func TestAddCases(t *testing.T) {
+    cases := []addCase{
+        addCase{"small", 1, 2, 3},
+        addCase{"negative", -4, 1, -3},
+    };
+    for (_, c := range cases) {
+        t.Run(c.name, func(t *testing.T) {
+            if (Add(c.a, c.b) != c.want) t.Errorf("got {}, want {}", Add(c.a, c.b), c.want);
+        });
+    }
+}
+```
+
+--- parallel | Parallel tests
+Tests run one after another by default. A test that calls `t.Parallel()` pauses there and resumes once the package's other sequential tests have finished, alongside the other parallel tests. When several packages are tested together, the packages run concurrently. At most 16 tests run at once by default; `-t N` changes the limit and `--single-threaded` sets it to one.
+
+A parallel subtest resumes after its parent's function has returned, so the parent's deferred calls run before the subtest does. Use `t.Cleanup` for anything parallel subtests depend on: cleanup functions wait for all subtests to finish.
+
+--- running | Running tests
+`ocean test` with no location tests the current directory. Pass several locations to test several packages, or use `./...` to include every package below a directory.
+```code Terminal
+ocean test
+ocean test ./...
+ocean test parser lexer
+ocean test . -v
+ocean test . --json
+ocean test . --timeout 30s
+```
+@table
+Option | Effect
+`-v` | Include passing tests in the final report
+`--notty` | Disable the live terminal display
+`--no-color` | Disable color (as does the `NO_COLOR` variable)
+`--json` | Print test events as JSON, one per line
+`--outfile path`, `-o path` | Also save the plain-text report to a file
+`--jsonfile path` | Also save JSON events to a file
+`--hide-skipped` | Leave skipped tests out of the details (they are still counted)
+`--timeout duration` | Fail if tests run longer than this (default `10m`; `0` disables)
+`-t N`, `--single-threaded` | Limit how many tests run at once
+@after
+In a terminal, `ocean test` shows a live display of running and finished tests. Scroll with the arrow or Page keys, press `f` or End to follow new output, and `q` or Ctrl+C to stop. While that display is active, tests read end-of-file from standard input, so use `--notty` for tests that read input. Output printed by tests is captured either way.
+
+The command exits with status zero when every test passes (or there are none), and nonzero for any failure, compilation error, or timeout. Each JSON event has `Time`, `Action`, `Package`, and `Elapsed` fields, plus `Test` and `Output` where relevant; actions are `start`, `run`, `pause`, `cont`, `output`, `pass`, `fail`, and `skip`.
+
+=== tooling/editor
+group: Tooling
+title: Editor support
+desc: Connect your editor to Ocean's language server for diagnostics, completion, navigation, and rename.
+
+--- server | The language server
+`ocean check --lsp` runs a Language Server Protocol server over standard input and output. Any editor with a generic LSP client can use it: configure the command `ocean` with the arguments `check` and `--lsp`, for files ending in `.oc`.
+
+It provides diagnostics as you type (including for unsaved files), hover with resolved types, go to definition and find references across files and packages, rename, and completion of local names, fields, methods, enum variants, and package members. Completing the name of a package you haven't imported yet adds the import for you.
+
+--- limits | What the editor checks
+To stay fast, the language server stops after type checking: it does not generate code or link. Some problems, such as an unsupported feature in code generation or a missing C library, therefore only show up with `ocean check` or a build. Editor analysis also recovers from errors so that the rest of a file stays usable, while command-line builds are strict.
+
+--- helix | Helix: get the files
+The compiler repository ships everything Helix needs in `editors/helix`: a Tree-sitter grammar for highlighting, the highlight and indentation queries, and two color themes, `ocean-dark` and `ocean-light`, that match the code on this site. Clone the repository (or update your existing checkout), then copy the three parts into your Helix configuration directory. On Linux and macOS that is `~/.config/helix`; on Windows it is `%AppData%\helix`.
+```code Terminal
+git clone https://github.com/ocean-foundation/ocean-c.git
+cd ocean-c/editors/helix
+
+mkdir -p ~/.config/helix/grammars/ocean ~/.config/helix/runtime/grammars \
+  ~/.config/helix/runtime/queries/ocean ~/.config/helix/themes
+cp -r grammar/. ~/.config/helix/grammars/ocean/
+cp queries/ocean/*.scm ~/.config/helix/runtime/queries/ocean/
+cp themes/*.toml ~/.config/helix/themes/
+```
+@after
+The grammar source goes in `grammars/ocean`, and Helix writes the compiled grammar to `runtime/grammars`, which it does not create by itself; the queries in `runtime/queries/ocean`, which tell Helix how to color what the grammar finds; and the themes in `themes`.
+
+--- helix-languages | Helix: register the language
+Add the Ocean language, its language server, and its grammar to `languages.toml` in the same directory. Replace `/home/you` with the absolute path of your home directory: the grammar `source` must be an absolute path.
+```code languages.toml
+[language-server.ocean-lsp]
+command = "ocean"
+args = ["check", "--lsp"]
+
+[[language]]
+name = "ocean"
+scope = "source.ocean"
+injection-regex = "ocean"
+file-types = ["oc"]
+roots = ["ocean.mod", ".git"]
+comment-token = "//"
+block-comment-tokens = { start = "/*", end = "*/" }
+language-servers = ["ocean-lsp"]
+grammar = "ocean"
+indent = { tab-width = 4, unit = "    " }
+
+[[grammar]]
+name = "ocean"
+source = { path = "/home/you/.config/helix/grammars/ocean" }
+```
+@after
+If your editor runs a compiler straight from a source checkout rather than an installed one, also add `environment = { OCEAN_SRC = "/path/to/ocean-src" }` to the `ocean-lsp` section, as described below.
+
+--- helix-build | Helix: build the grammar
+Ask Helix to compile the grammar, then check that everything is found. The command is `helix` or `hx`, depending on how Helix was installed. Building needs a C compiler, but not the Tree-sitter command-line tool.
+```code Terminal
+helix --grammar build
+helix --health ocean
+```
+@after
+`helix --grammar build` builds every grammar in your configuration. To build only Ocean's, add `use-grammars = { only = ["ocean"] }` at the top of `languages.toml` while you run it, and remove the line afterwards if you use other languages. The health check should report the language server, the Tree-sitter parser, and the highlight and indent queries as found. Ocean doesn't ship textobject queries, so that line shows as missing.
+
+--- helix-theme | Helix: choose a theme
+Select one of the Ocean themes in `config.toml`. `ocean-dark` uses Darcula-style colors and `ocean-light` uses IntelliJ-style ones. Both color the editor's interface to match this site as well as the code. You can also try them without editing the file by typing `:theme ocean-dark` in Helix.
+```code config.toml
+theme = "ocean-dark"
+```
+@after
+The themes work for every language, not only Ocean. Because Ocean's grammar recognizes tokens rather than full syntax, Ocean highlighting is close to, but not quite as detailed as, the code on this site. Its queries recognize keywords, types, functions and method calls, fields, enum variants, and standard-library package names from their surroundings.
+
+--- helix-update | Helix: updating
+After pulling a new version of `ocean-c`, copy the files again and rerun `helix --grammar build`, then restart Helix. Restart only the language server, after updating the compiler, with `:lsp-restart`. For manual completion, bind a key to `completion` in `config.toml`; for example `C-space = "completion"` under `[keys.insert]`.
+@links
+Helix files in the compiler repository -> https://github.com/ocean-foundation/ocean-c/tree/main/editors/helix
+
+--- checkout | Using a compiler from a source checkout
+A compiler run straight from its build directory has no installed library next to it. If your editor starts such a compiler, set `OCEAN_SRC` in the language server's environment to your standard-library checkout, or standard-library imports won't resolve.
+
+=== tooling/webassembly
+group: Tooling
+title: WebAssembly
+desc: Compile Ocean packages to WebAssembly modules for a JavaScript host.
+
+--- building | Building for WebAssembly
+Set the environment variables `OCOS=js` and `OCARCH=wasm` to compile for WebAssembly instead of your machine. Both must be set together. The setting applies to every command that compiles: `build`, `check`, and `--emit-llvm`.
+```code Terminal
+OCOS=js OCARCH=wasm ocean build . -o main.wasm
+```
+@after
+The output is a `wasm32-unknown-unknown` module. You need a Clang with the WebAssembly target and `wasm-ld`; Clang and LLD version 23 are recommended. `ocean run` and `ocean test` only work for native targets, so load the module in a WebAssembly host to run it.
+
+--- host | What the host provides
+The module exports `main`. Functions it cannot resolve itself, such as memory allocation and other runtime support, are imported from the `env` module, and the JavaScript host must supply them. No JavaScript adapter is included. Ocean's integers remain 64-bit, while pointers are 32-bit.
+
+--- library | The standard library on WebAssembly
+Much of the standard library talks to the operating system through native system calls, and those parts have no WebAssembly implementation yet: output from `io` does not work, and importing `threads`, `sync`, or `term/tui` fails to compile. `net/http` compiles, but needs a transport supplied by the host. `time.Monotonic` imports `env.ocean_time_monotonic_ns`, which must return monotonic nanoseconds as a 64-bit integer (a BigInt in JavaScript).
+
+Use files ending in `_wasm.oc` and `_native.oc` to provide different implementations for the two targets, and `asm wasm { … }` for WebAssembly-specific inline assembly.

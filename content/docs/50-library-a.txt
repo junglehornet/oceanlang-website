@@ -1,0 +1,355 @@
+=== library/io
+group: Standard library
+title: io
+desc: Print and format text, read from standard input and files with scanners, and parse numbers.
+
+--- printing | Printing
+`io.Print` writes its arguments to standard output, and `io.Println` does the same and adds a newline. They accept any number of values of any type. A space is inserted between two neighboring arguments only when neither is a string, so `io.Println(1, 2)` prints `1 2`, while `io.Println("x=", 1)` prints `x=1`. Include spaces in your strings where you want them.
+```code
+// check: run
+// expect: 1 2 3
+// expect: total: 42
+// expect: pi is about 3.14
+package main;
+
+import "io";
+
+func main() {
+    io.Println(1, 2, 3);
+    io.Println("total: ", 42);
+    io.Println("pi is about ", 3.14159);
+}
+```
+@after
+Floats print with two decimal places by default. Use `io.FormatFloat(x)` for the full precision needed to read the value back exactly. Structs print as `{x: 1, y: 2}`, arrays as `[1 2 3]`, and enums as `Shape.Circle(1.50)`. Byte arrays (`[]i8`) print as numbers; cast them to `string` to print text. Maps cannot be printed directly yet.
+
+--- formatting | Formatting with placeholders
+`io.Printf` and `io.Printfln` take a format string in which each `{}` is replaced by the next argument, printed as `io.Print` would print it. `Printfln` adds a newline. To include a literal `{` before a `}`, escape it with a backslash, written `"\\{}"` in an Ocean string. There are no width or precision specifiers.
+
+`io.Sprint` and `io.Sprintf` return the text instead of printing it. Because a format string can have the wrong number of placeholders, `Sprintf` returns a `Result<string>`.
+```code
+// check: run
+// expect: 3 apples cost 1.50
+package main;
+
+import "io";
+
+func main() {
+    label := io.Sprintf("{} apples cost {}", 3, 1.5).unwrap();
+    io.Println(label);
+}
+```
+
+--- results | Output results
+The print functions return a `Result<int>` with the number of bytes written. Writing to standard output almost never fails, so most programs ignore the result. Check it when output goes somewhere that might fail, such as a closed pipe.
+
+--- stdin | Reading from standard input
+`io.Scanln()` reads one line from standard input, without the trailing newline. `io.Scan()` reads one word: it stops at any whitespace. Both return a `Result<string>`. At the end of input they succeed with an empty string. A carriage return before the newline is kept, so strip it yourself if you process Windows-style input.
+```code
+// check: skip
+package main;
+
+import "io";
+
+func main() {
+    io.Print("What is your name? ");
+    name := io.Scanln().unwrap();
+    io.Println("Hello, ", name, "!");
+}
+```
+
+--- scanner | Scanners
+For files, or for more control, create a scanner with `io.NewScanner(file)`, passing an `os.File` opened for reading in text mode. A scanner buffers its input; use one scanner per file and don't mix it with direct reads on the same file.
+@table
+Method | Returns
+`Scanln()` | `Result<string>`: the next line, without its newline
+`Scan()` | `Result<string>`: the next whitespace-separated word
+`Scanc(delimiter)` | `Result<string>`: text up to the given byte, which is consumed
+`Scann(n)` | `Result<io.ScanResult>`: up to `n` bytes in `Bytes`, with `End` set if input ended first
+`HasNextln()`, `HasNext()`, `HasNextc(delimiter)` | `Result<bool>`: whether a complete line, word, or segment is available without waiting
+```code
+// check: skip
+package main;
+
+import "io";
+import "os";
+
+func main() {
+    file := os.Open("notes.txt", os.FileMode.Read).unwrap();
+    defer file.Close();
+    scanner := io.NewScanner(file);
+    for (scanner.HasNextln().unwrap()) {
+        io.Println("> ", scanner.Scanln().unwrap());
+    }
+}
+```
+@after
+The `HasNext` methods only look at data that is already available and never wait for more. That makes them ideal for files. On a terminal or pipe they may return `false` simply because the user hasn't typed anything yet.
+
+--- parsing | Parsing numbers
+`io.ParseInt(text)` reads a whole string as a base-10 integer, with an optional `+` or `-` sign. `io.ParseFloat(text)` reads a decimal number with an optional fraction and exponent, such as `-1.25e2` or `.5`, and also accepts `inf`, `infinity`, and `nan`. Both return an error `Result` instead of panicking if the text is not a valid number, has surrounding spaces or trailing characters, or is out of range.
+```code
+// check: run
+// expect: 42 0.01
+// expect: invalid integer
+package main;
+
+import "io";
+
+func main() {
+    count := io.ParseInt("42").unwrap();
+    ratio := io.ParseFloat("1.25e-2").unwrapOrElse(0.0);
+    io.Println(count, " ", ratio);
+    io.Println(io.ParseInt("12 apples").error());
+}
+```
+@after
+Number parsing and formatting are written in Ocean and don't depend on the C library or the system locale.
+
+=== library/os
+group: Standard library
+title: os
+desc: Open, read, and write files, access the standard streams, read command-line arguments, and exit.
+
+--- args-exit | Arguments and exit
+`os.Args()` returns the command-line arguments as an array of strings. The first element is the path of the program itself, so the arguments you typed start at index 1. `os.Exit(code)` ends the whole process immediately with the given status. It does not run deferred calls, so prefer returning from `main` when you can.
+
+--- opening | Opening files
+`os.Open(path, mode)` opens a file and returns a `Result<os.File>`. The mode chooses what you can do with the file. Text and binary modes differ only in what you may do with them: a scanner can only read text-mode files.
+@table
+Mode | Meaning
+`os.FileMode.Read` | Read an existing file
+`os.FileMode.Write` | Create the file, or empty an existing one, and write
+`os.FileMode.ReadWrite` | Read and write, creating the file if needed without emptying it
+`os.FileMode.Append` | Write at the end, creating the file if needed
+`os.FileMode.ReadAppend` | Read, and write at the end
+`Binary`, `BinaryWrite`, `BinaryReadWrite`, `BinaryAppend`, `BinaryReadAppend` | The same modes for binary data (`Binary` is read-only)
+@after
+`os.Stdin()`, `os.Stdout()`, and `os.Stderr()` return the standard streams as files. Copies of an `os.File` value refer to the same open file and share its position. Close a file with `Close()` when you are done; closing twice is harmless.
+
+--- writing | Writing a file
+`file.Write(text)` writes a string and returns a `Result<int>` with the number of bytes written.
+```code
+// check: run
+// expect: 23
+package main;
+
+import "io";
+import "os";
+
+func main() {
+    out := os.Open("notes.txt", os.FileMode.Write).unwrap();
+    out.Write("first line\nsecond line\n").unwrap();
+    out.Close();
+
+    file := os.Open("notes.txt", os.FileMode.Read).unwrap();
+    io.Println(file.Size().unwrap());
+    file.Close();
+}
+```
+
+--- reading | Reading bytes
+For line- or word-based reading, wrap a file in an `io.Scanner`. For raw bytes, use the file's own read methods.
+@table
+Method | Returns
+`Read()` | `Result<int>`: the next byte as 0–255, or -1 at end of file
+`Readn(n)` | `Result<os.ReadResult>`: exactly `n` bytes in `Bytes` (zero-padded), with `End` set if the file ended early
+`Readchunk(n)` | `Result<[]i8>`: up to `n` bytes; empty at end of file
+`Readend()` | `Result<array<i8>>`: everything from the current position to the end
+`Readall()` | `Result<array<i8>>`: the whole file, without moving the current position
+`Size()` | `Result<int>`: the file's size in bytes
+`Setpos(offset)` | Move to a byte offset, from 0 up to the size
+@after
+To turn bytes into a string, slice them into a dynamic array and cast: `text := file.Readall().unwrap()[:] -> string;`.
+
+`IsOpen()`, `CanRead()`, `CanWrite()`, and `IsBinary()` describe a file. `Close()` and `Setpos()` panic if the operating system reports a failure; every other method reports problems through its `Result`. Reading again after the end of file has been reported panics.
+
+--- errors | Handling a missing file
+Opening a file that doesn't exist, or that you lack permission for, returns an error `Result` rather than panicking, so you can decide what to do.
+```code
+// check: run
+// expect: using defaults: could not open file
+package main;
+
+import "io";
+import "os";
+
+func main() {
+    opened := os.Open("settings.txt", os.FileMode.Read);
+    if (opened.hasError()) {
+        io.Println("using defaults: ", opened.error());
+        return;
+    }
+    file := opened.unwrap();
+    file.Close();
+}
+```
+
+--- descriptors | Native handles
+`os.FromDescriptor(fd, readable, writable)` wraps an existing operating-system file descriptor as an `os.File`, and `file.NativeHandle()` returns the descriptor of an open file. These are for interoperating with C code.
+
+=== library/os/exec
+group: Standard library
+title: os/exec
+desc: Run other programs, pass them arguments and environment variables, and capture their output.
+
+--- command | Running a command
+`exec.Command(name, args...)` describes a program to run. The arguments are passed to it directly; no shell is involved, so spaces and quotes in arguments need no escaping. The name is looked up on `PATH` unless it contains a path. Then run it in one of three ways:
+@table
+Method | Behavior
+`Run()` | Run with the parent's standard input and output; returns `Result<int>`
+`Output()` | Capture standard output as a `Result<string>`; standard error passes through
+`CombinedOutput()` | Capture standard output and standard error together, in the order written
+```code
+// check: run
+// expect: hello world
+package main;
+
+import "io";
+import "os/exec";
+
+func main() {
+    command := exec.Command("echo", "hello", "world");
+    io.Print(command.Output().unwrap());
+}
+```
+@after
+A nonzero exit status counts as an error, so `unwrap()` panics if the program fails. After it finishes, the command's `ExitCode` field holds the exit status (or -1 if the program was killed by a signal). Each command can run only once.
+
+--- configuring | Working directory and environment
+Set fields on the command before running it. `Dir` sets the working directory, and `Env` replaces the environment with a list of `KEY=value` strings; leaving either empty inherits the parent's.
+```code
+// check: skip
+package main;
+
+import "io";
+import "os/exec";
+
+func main() {
+    command := exec.Command("/bin/sh", "-c", "echo \"$GREETING from $PWD\"");
+    command.Env = []string{"GREETING=hello"};
+    command.Dir = "/tmp";
+    io.Print(command.Output().unwrap());
+}
+```
+
+--- lookpath | Finding programs
+`exec.LookPath(name)` returns the full path of the program that `name` would run, or an error if it isn't found.
+
+--- limits | Limitations
+Output is collected in temporary files, so commands that produce a lot of output can't deadlock, but there is no size limit. There is no way yet to start a command and wait for it later, to connect pipes, to set a timeout, or to supply standard input. `os/exec` works on Linux, macOS, and Windows, but not on WebAssembly.
+
+=== library/encoding/json
+group: Standard library
+title: encoding/json
+desc: Encode Ocean values as JSON text and decode JSON into dynamic values.
+
+--- marshal | Encoding
+`json.Marshal(value)` returns the JSON text for a value as a `Result<string>`. It handles `null`, booleans, strings, integers, finite floats, structs, `map[string]any`, `mixed []any`, and dynamic arrays of strings, integers, floats, and booleans. Struct fields are written with their exact names, including private ones; object keys from maps come out sorted. Types it can't encode produce an error.
+```code
+// check: run
+// expect: {"Name":"Ada","Age":36,"Tags":["math"]}
+package main;
+
+import "io";
+import "encoding/json";
+
+struct Person {
+    Name string;
+    Age int;
+    Tags []string;
+}
+
+func main() {
+    io.Println(json.Marshal(Person{"Ada", 36, []string{"math"}}).unwrap());
+}
+```
+
+--- unmarshal | Decoding
+`json.Unmarshal(text)` parses a document and returns a `Result<any>`. Objects become `map[string]any`, arrays become `mixed []any`, strings, booleans, and `null` become their Ocean equivalents, and numbers become `json.Number`. Use type assertions or type switches to navigate the result.
+```code
+// check: run
+// expect: Lin 2 2.50
+package main;
+
+import "io";
+import "encoding/json";
+
+func main() {
+    value := json.Unmarshal("{\"name\": \"Lin\", \"scores\": [1, 2.5]}").unwrap();
+    object := value.(map[string]any);
+    name := object["name"].(string);
+    scores := object["scores"].(mixed []any);
+    second := scores[1].(json.Number).Float64().unwrap();
+    io.Println(name, " ", len(scores), " ", second);
+}
+```
+
+--- number | json.Number
+A `json.Number` keeps the number's original text in its `Text` field, so large integers and exact decimal spellings aren't lost. Convert it with `Int64()` or `Float64()`, which return a `Result` and fail if the value doesn't fit.
+
+--- valid | Validation and limits
+`json.Valid(text)` reports whether a string is one complete, valid JSON document. Decoding checks UTF-8, escape sequences, and number syntax, and limits nesting to 128 levels. When an object repeats a key, the last value wins.
+
+There is no decoding into structs, no field tags or custom encoders, no streaming, and no pretty-printing. Fixed-size arrays, pointers, and maps with non-`any` values such as `map[string]int` can't be encoded yet; convert them to supported types first.
+
+=== library/net/http
+group: Standard library
+title: net/http
+desc: Make HTTP and HTTPS requests with timeouts, custom headers, and cancellation.
+
+--- get | Making a request
+`http.Get(url)` fetches a URL and returns a `Result<http.Response>`. The response has `StatusCode` (such as `200`), `Status` (such as `200 OK`), `Header`, and `Body`, a string containing the whole response body. Status codes such as 404 are normal responses, not errors; errors are reserved for failures such as an unreachable server or an invalid certificate.
+```code
+// check: skip
+package main;
+
+import "io";
+import "net/http";
+
+func main() {
+    response := http.Get("https://example.com/").unwrap();
+    io.Println(response.StatusCode, " ", response.Header.Get("Content-Type"));
+    io.Println(len(response.Body), " bytes");
+}
+```
+@after
+`http.Post(url, contentType, body)` sends a POST request with the given body.
+
+--- client | Clients and timeouts
+For control over requests, declare an `http.Client` and set its fields; the zero value works. `Timeout` is a time limit in nanoseconds for the whole request, from connecting to reading the last byte, so use the units from the `time` package. Zero means no limit. `MaxResponseBytes` caps the response size (16 MiB by default).
+```code
+// check: skip
+package main;
+
+import "io";
+import "net/http";
+import "time";
+
+func main() {
+    client: http.Client;
+    client.Timeout = 5 * time.Second;
+    request := http.NewRequest("POST", "https://example.com/items", "{\"name\": \"rope\"}").unwrap();
+    request.Header.Set("Content-Type", "application/json");
+    response := client.Do(request).unwrap();
+    io.Println(response.Status);
+}
+```
+@after
+`http.NewRequest(method, url, body)` builds a request; an empty method means GET. `client.Do(request)` sends it, and `client.Get` and `client.Post` are shortcuts. A timed-out request fails with the error `http: timeout exceeded`.
+
+--- headers | Headers
+`Header` is used for both requests and responses. `Set` replaces a header's value, `Add` appends another value, `Get` returns the first value (or an empty string), `Values` returns all of them, and `Del` removes the header. Names are case-insensitive. The client manages `Host`, `Connection`, `Content-Length`, and `Transfer-Encoding` itself, and setting them is an error.
+
+--- cancel | Cancellation
+To cancel a request from another thread, create an `http.Cancellation`, attach it with `http.NewRequestWithCancel(&cancel, method, url, body)` or `request.WithCancel(&cancel)`, and call `cancel.Cancel()`. The request then fails with `http: request canceled`. Keep the cancellation value in one place (don't copy it) and alive until the request has finished. One cancellation can cancel several requests.
+
+--- tls | Security and limits
+HTTPS connections always verify the server's certificate and hostname and require TLS 1.2 or newer, using the system's trusted certificates. To trust a private certificate authority, set `client.TLSClientConfig.RootCAFile` to a PEM file. There is no option to turn verification off.
+
+Redirects are not followed, and proxies, cookies, compressed responses, IPv6 address literals in URLs, connection reuse, and HTTP servers are not supported yet. URL paths must already be percent-encoded.
+
+--- requirements | Requirements
+The native implementation uses libcurl 7.68 or newer, built with TLS support. The installer's dependency bundle includes it; otherwise install your system's libcurl development package (such as `libcurl4-openssl-dev` on Debian and Ubuntu). The compiler links libcurl automatically for programs that import `net/http`.
+
+On WebAssembly, the package compiles, but you must supply a transport by setting `client.Transport` to a value with a `RoundTrip(request Request) Result<Response>` method that performs the request through the host.

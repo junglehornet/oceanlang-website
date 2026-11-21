@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { docs } from '$lib/docs';
+import { docs } from '#lib/docs.ts';
 export function entries() { return docs.map(doc=>({slug:doc.slug})); }
 export function load({ params }: {params: {slug: string}}) {
  const index = docs.findIndex(doc=>doc.slug===params.slug.replace(/\/+$/, ''));

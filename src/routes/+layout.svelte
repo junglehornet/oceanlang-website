@@ -2,15 +2,14 @@
  import './layout.css';
  import { onMount, tick } from 'svelte';
  import { page } from '$app/state';
- import { docs } from '$lib/docs';
- import Logo from '$lib/components/Logo.svelte';
+ import { docs } from '#lib/docs.ts';
+ import Logo from '#lib/components/Logo.svelte';
  let { children } = $props();
  let dark = $state(true);
  let searchOpen = $state(false);
  let query = $state('');
  let menuOpen = $state(false);
  let searchPanel = $state<HTMLDivElement>();
- let cookiePopup = $state<'ask' | 'sorry' | 'dismissed'>('ask');
  $effect(() => {
   if (searchOpen) {
    const previous = document.activeElement as HTMLElement;
@@ -35,7 +34,7 @@
 <svelte:window onkeydown={keyboard}/>
 <svelte:head><link rel="icon" type="image/svg+xml" href="/favicon.svg?v=waves"/><meta name="theme-color" content={dark ? '#0b1424' : '#f7f9fd'}/><meta name="description" content="Ocean is a native programming language with familiar syntax, explicit types, generics, and independent copies of owned collection values. Explore the language and its documentation."/></svelte:head>
 <a class="skip-link" href="#main">Skip to content</a>
-<header class="site-header"><div class="header-inner"><a class="brand" href="/" aria-label="Ocean home"><Logo/><span>ocean</span></a><span class="version">0.1 <span> / in development</span></span><nav class:mobile-open={menuOpen} aria-label="Main navigation"><a class:active={page.url.pathname.startsWith('/docs')} href="/docs/" onclick={()=>menuOpen=false}>Documentation</a><a href="/#language" onclick={()=>menuOpen=false}>The language</a><a href="/docs/tooling/cli/" onclick={()=>menuOpen=false}>Tooling</a></nav><div class="header-actions"><button class="search-trigger" onclick={()=>searchOpen=true} aria-label="Search documentation"><span>⌕</span><span class="search-label">Search docs</span><kbd>⌘ K</kbd></button><button class="theme-toggle" onclick={toggleTheme} aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'} title={dark ? 'Switch to light theme' : 'Switch to dark theme'}>{dark ? '☼' : '☾'}</button><button class="mobile-toggle" onclick={()=>menuOpen=!menuOpen} aria-label="Toggle menu" aria-expanded={menuOpen}>☰</button></div></div></header>
+<header class="site-header"><div class="header-inner"><a class="brand" href="/" aria-label="Ocean home"><Logo/><span>ocean</span></a><span class="version">0.1 <span> / in development</span></span><nav class:mobile-open={menuOpen} aria-label="Main navigation"><a class:active={page.url.pathname.startsWith('/docs')} href="/docs/" onclick={()=>menuOpen=false}>Documentation</a><a class:active={page.url.pathname.startsWith('/spec')} href="/spec/" onclick={()=>menuOpen=false}>Language Spec</a><a href="/docs/tooling/cli/" onclick={()=>menuOpen=false}>Tooling</a></nav><div class="header-actions"><button class="search-trigger" onclick={()=>searchOpen=true} aria-label="Search documentation"><span>⌕</span><span class="search-label">Search docs</span><kbd>⌘ K</kbd></button><button class="theme-toggle" onclick={toggleTheme} aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'} title={dark ? 'Switch to light theme' : 'Switch to dark theme'}>{dark ? '☼' : '☾'}</button><button class="mobile-toggle" onclick={()=>menuOpen=!menuOpen} aria-label="Toggle menu" aria-expanded={menuOpen}>☰</button></div></div></header>
 {@render children()}
 <footer class="site-footer">
  <a class="brand" href="/"><Logo small/><span>ocean</span></a>
@@ -48,63 +47,3 @@
  </div>
 </footer>
 {#if searchOpen}<div class="search-backdrop" role="presentation" onclick={(e)=>{if(e.target===e.currentTarget)searchOpen=false;}}><div bind:this={searchPanel} onkeydown={trapFocus} class="search-dialog" role="dialog" aria-modal="true" aria-label="Search documentation" tabindex="-1"><div class="search-input"><span>⌕</span><input aria-label="Search documentation" placeholder="Search the Ocean docs…" bind:value={query}/><button onclick={()=>searchOpen=false} aria-label="Close search">Esc</button></div><div class="search-results">{#if results.length===0}<p>No results. Try “arrays”, “install”, or “functions”.</p>{/if}{#each results as result}<a href={'/docs/'+result.slug+'/'} onclick={()=>searchOpen=false}><small>{result.group}</small><strong>{result.title}<span>↗</span></strong><p>{result.description}</p></a>{/each}</div><div class="search-bottom">Search the language guide, tooling, and standard library</div></div></div>{/if}
-
-{#if page.url.pathname === '/' && cookiePopup !== 'dismissed'}
- <div class="cookie-popup" role="dialog" aria-label="Cookie preferences">
-  {#if cookiePopup === 'ask'}
-   <p class="cookie-title">Allow cookies?</p>
-   <p class="cookie-text">Do you want to allow this website to store cookies on your device?</p>
-   <div class="cookie-actions">
-    <button class="cookie-btn primary" onclick={() => (cookiePopup = 'sorry')}>Yes</button>
-    <button class="cookie-btn secondary" onclick={() => (cookiePopup = 'dismissed')}>No</button>
-    <button class="cookie-btn secondary" onclick={() => (cookiePopup = 'dismissed')}>Hell no</button>
-   </div>
-  {:else}
-   <p class="cookie-text">Sorry, but our website doesn't use any cookies</p>
-   <div class="cookie-actions">
-    <button class="cookie-btn secondary" onclick={() => (cookiePopup = 'ask')}>Try Again</button>
-   </div>
-  {/if}
- </div>
-{/if}
-
-<style>
- .cookie-popup {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  z-index: 40;
-  max-width: 340px;
-  width: calc(100vw - 48px);
-  padding: 20px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: 0 20px 50px var(--shadow);
- }
- .cookie-title {
-  font: 600 15px Manrope, sans-serif;
-  color: var(--text);
-  margin-bottom: 6px;
- }
- .cookie-text {
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--muted);
- }
- .cookie-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
- }
- .cookie-btn {
-  padding: 8px 14px;
-  border-radius: 5px;
-  font-size: 12px;
-  font-weight: 600;
-  transition: transform 0.15s, background 0.15s;
- }
- .cookie-btn:hover {
-  transform: translateY(-1px);
- }
-</style>

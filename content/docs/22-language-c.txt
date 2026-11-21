@@ -1,0 +1,653 @@
+=== language/errors
+group: Language guide
+title: Errors
+desc: Report recoverable failures with Result, stop on bugs with panic, and recover when you must.
+
+--- two-kinds | Two kinds of failure
+Ocean separates failures you expect from failures that indicate a bug.
+
+An expected failure, such as a missing file or text that isn't a number, is returned as a value of the built-in type `Result<T>`. The caller decides what to do about it. The standard library reports all recoverable errors this way.
+
+A failure that should never happen, such as an index out of range or a broken assumption, is a panic. A panic prints a message, the source location, and a call trace, then ends the program with exit status 1 unless something recovers it.
+
+--- result | Result<T>
+`Result<T>` is a built-in enum with two variants: `Result<T>.value(x)` holds a successful result and `Result<T>.error(message)` holds an error message string. It has methods for the common ways of handling it.
+@table
+Method | On a value | On an error
+`unwrap()` | Returns the value | Panics with the error message
+`unwrapOrElse(fallback)` | Returns the value | Returns `fallback`
+`unwrapOrZero()` | Returns the value | Returns the type's default value
+`hasError()` | `false` | `true`
+`error()` | Panics | Returns the error message
+@after
+`unwrapOrElse` takes a plain value, not a function, and that value is always evaluated, even when the result is a success.
+
+--- handling | Handling a Result
+Use `unwrap()` when an error really is unexpected and stopping is the right response, as in a quick script. When you can do something sensible instead, check `hasError()`, use a fallback, or `match` on the two variants.
+```code
+// check: run
+// expect: 42
+// expect: 0
+// expect: could not read "seven": invalid integer
+package main;
+
+import "io";
+
+func main() {
+    io.Println(io.ParseInt("42").unwrap());
+    io.Println(io.ParseInt("forty").unwrapOrElse(0));
+
+    match (io.ParseInt("seven")) {
+        Result.value(n) => io.Println(n);
+        Result.error(message) => io.Printfln("could not read \"seven\": {}", message);
+    }
+}
+```
+
+--- returning | Returning a Result
+Your own functions return errors the same way: declare a `Result<T>` result type and construct one of its variants. To pass an error from a call on to your own caller, check it and return a new error. When the payload types differ, extract the message with `error()`.
+```code
+// check: run
+// expect: 1.50
+// expect: error: cannot divide by zero
+package main;
+
+import "io";
+
+func ratio(a, b string) Result<float> {
+    top := io.ParseFloat(a);
+    if (top.hasError()) return Result<float>.error(top.error());
+    bottom := io.ParseFloat(b);
+    if (bottom.hasError()) return Result<float>.error(bottom.error());
+    if (bottom.unwrap() == 0) return Result<float>.error("cannot divide by zero");
+    return Result<float>.value(top.unwrap() / bottom.unwrap());
+}
+
+func main() {
+    io.Println(ratio("3", "2").unwrap());
+    result := ratio("1", "0");
+    if (result.hasError()) io.Println("error: ", result.error());
+}
+```
+
+--- panic | panic
+`panic "message";` stops the current function and starts unwinding the call stack. Deferred calls run on the way out. If nothing recovers, the program prints `Panic:` with the message, the file, line, and column, the offending source line, and a call trace, then exits with status 1. The message must be a string. Because a panic never returns, a function may end in a panic instead of a `return`.
+
+The runtime raises the same kind of error for problems it detects, such as an out-of-range array index or a missing map key. Those reports work without debug symbols or source files, because the compiler embeds the needed source snippets in the executable.
+
+--- return-panic | return panic: blaming the caller
+Often a function panics because it was called incorrectly. `return panic "message";` reports the panic at the place where the current function was called, rather than inside it, so the diagnostic points at the code that needs fixing. The full call trace is still shown.
+```code
+// check: skip
+package main;
+
+import "io";
+
+func check(n int) int {
+    if (n < 0) return panic "negative input";
+    return n;
+}
+
+func main() {
+    io.Println(check(-1));    // the panic is reported here
+}
+```
+@after
+`return panic` skips the deferred calls of the function it appears in. `forward panic` extends this through helper layers: write `forward panic return helper();`, or `forward panic { first(); second(); }` around several statements, and a `return panic` coming out of those calls is reported at your caller instead. Only panics that originate from `return panic` are forwarded; an ordinary `panic` keeps its own location.
+
+--- recover | Recovering from a panic
+`recover()` stops a panic, but only when it is called directly inside a deferred function while that panic is unwinding. It returns the panic message as an `any` holding a `string`. In any other situation it returns `null`. After recovery, the function that panicked returns normally to its caller: named results keep their current values, and other results are default values.
+```code
+// check: run
+// expect: recovered: division by zero
+// expect: -1
+package main;
+
+import "io";
+
+func divide(a, b int) (result int) {
+    defer func() {
+        message := recover();
+        if (message != null) {
+            io.Println("recovered: ", message.(string));
+            result = -1;
+        }
+    }();
+    if (b == 0) panic "division by zero";
+    return a / b;
+}
+
+func main() {
+    io.Println(divide(1, 0));
+}
+```
+@after
+Recover from panics sparingly. A deferred cleanup that needs to run is a good use; using panics for ordinary error handling is not, because `Result` makes those paths visible in function signatures.
+
+=== language/interfaces
+group: Language guide
+title: Interfaces & any
+desc: Describe behavior with interfaces, hold any value with any, and recover concrete types with assertions and type switches.
+
+--- interfaces | Declaring and satisfying interfaces
+An interface lists method signatures. Any type that has those methods satisfies the interface automatically; there is no `implements` declaration. A variable of an interface type can hold a value of any satisfying type, and calling a method on it runs the concrete type's method.
+```code
+// check: run
+// expect: square 4.00
+// expect: circle 3.14
+package main;
+
+import "io";
+
+interface Shape {
+    Area() float;
+    Name() string;
+}
+
+struct Square { side float; }
+struct Circle { radius float; }
+
+func (s Square) Area() float { return s.side * s.side; }
+func (s Square) Name() string { return "square"; }
+func (c Circle) Area() float { return 3.14 * c.radius * c.radius; }
+func (c Circle) Name() string { return "circle"; }
+
+func report(shape Shape) {
+    io.Println(shape.Name(), " ", shape.Area());
+}
+
+func main() {
+    report(Square{2.0});
+    report(Circle{1.0});
+}
+```
+@after
+In an interface, parameter names are optional (`Scale(float) float`), and the `func` keyword before a method is allowed but not required.
+
+--- pointer-methods | Pointer receivers
+If a type's methods use a pointer receiver, only a pointer to it satisfies the interface: store `&value`, not `value`. Calls through the interface then modify the original. Methods with value receivers work on a copy of the value stored in the interface.
+
+--- any | any
+`any` is the interface with no methods, so every value satisfies it. Use it when a function must accept values of many unrelated types, as `io.Println` does. A value of type `any` has no methods you can call; to use it, find out its concrete type first.
+
+Interface values, including `any`, can be `null`, and that is their default value. Calling a method on a null interface panics.
+
+--- assertions | Type assertions
+`value.(Type)` extracts the concrete value from an interface. If the value holds some other type, the program stops, so only assert this way when you know the type.
+
+To test the type instead, assign the assertion to two names: `msg, ok := value.(string);`. The second name is a `bool` that reports whether the value held that type. When it is `false`, the first name holds the type's zero value and the program keeps running. The two-name form also works with `=` and in an `if` initializer. To choose between several types, use a type switch.
+```code
+// check: run
+// expect: text hi
+// expect: not text
+package main;
+
+import "io";
+
+func show(value any) {
+    if (msg, ok := value.(string); ok) {
+        io.Println("text " + msg);
+        return;
+    }
+    io.Println("not text");
+}
+
+func main() {
+    show("hi");
+    show(42);
+}
+```
+
+--- type-switch | Type switches
+A type switch, `switch (v := value.(type))`, tests the value's concrete type against each case in order. In a case that names a single type, `v` has that type. In a case listing several types, and in `default`, `v` keeps the original interface type.
+```code
+// check: run
+// expect: number 4
+// expect: text hi
+// expect: something else
+package main;
+
+import "io";
+
+func describe(value any) string {
+    switch (v := value.(type)) {
+        case int:
+            return "number " + io.Sprint(v);
+        case string:
+            return "text " + v;
+        default:
+            return "something else";
+    }
+}
+
+func main() {
+    io.Println(describe(4));
+    io.Println(describe("hi"));
+    io.Println(describe(true));
+}
+```
+
+--- arrays | Arrays of interface values
+An array whose element type is an interface, such as `[]Shape`, is uniform by default: every element must have the same concrete type. To hold different types in one array, mark it `mixed`. A `mixed []any` can hold anything.
+```code
+// check: run
+// expect: square
+// expect: circle
+package main;
+
+import "io";
+
+interface Named { Name() string; }
+struct Square {}
+struct Circle {}
+func (s Square) Name() string { return "square"; }
+func (c Circle) Name() string { return "circle"; }
+
+func main() {
+    shapes: mixed []Named = {Square{}, Circle{}};
+    for (_, shape := range shapes) {
+        io.Println(shape.Name());
+    }
+    anything := mixed []any{1, "two", true};
+    anything.append(3.5);
+}
+```
+@after
+A variadic `...any` parameter is a `mixed []any`, which is why `io.Println(1, "two")` works.
+
+--- type-lists | Type-list interfaces
+Instead of methods, an interface can contain a list of types separated by `|`. Such an interface is satisfied by exactly those types. Prefix a type with `~` to also accept defined types built on it: `~int` matches `int` and `type UserID int`, but not narrower types such as `i32`. Type lists are mostly used as constraints for generics, described on the next page, but they can also be used directly as parameter types.
+```code
+interface Number { int | float }
+interface IntLike { ~int }
+```
+@note
+An interface contains either methods or one type list, never both.
+
+=== language/generics
+group: Language guide
+title: Generics
+desc: Write functions, structs, and methods that work across many types, and constrain what those types may be.
+
+--- functions | Generic functions
+Type parameters are written in angle brackets after a function's name. Each parameter can have a constraint that limits which types are allowed; without one, any type is allowed. When calling a generic function you must supply the type arguments explicitly: Ocean does not infer them.
+```code
+// check: run
+// expect: 9 1.50
+// expect: 1
+package main;
+
+import "io";
+
+func larger<T int | float>(a, b T) T {
+    return a > b ? a : b;
+}
+
+func indexOf<T>(items array<T>, wanted T) int {
+    for (i := 0; i < len(items); i++) {
+        if (items[i] == wanted) return i;
+    }
+    return -1;
+}
+
+func main() {
+    io.Println(larger<int>(3, 9), " ", larger<float>(1.5, 0.5));
+    io.Println(indexOf<string>([...]string{"a", "b"}, "b"));
+}
+```
+@after
+Every type supports `==` and `!=`, so `indexOf` works for any `T`. Other operators are allowed only if the constraint guarantees them for every permitted type: `int | float` allows arithmetic and ordering, while an unconstrained `T` allows only equality. The compiler checks generic function bodies even if they are never called.
+
+--- constraints | Constraints
+A constraint can be an interface with methods (the type must have those methods), a type-list interface or an inline type list such as `int | float`, a `~T` underlying-type match, or a generic struct family as described below. Type parameters that share a constraint can be grouped, as in `<K, V any>`. Leaving the constraint off is the same as writing `any`.
+
+--- structs | Generic structs
+Structs take type parameters the same way. Every use of the struct names its type arguments, such as `Stack<string>`. Methods of a generic struct name the parameters in the receiver, `(s *Stack<T>)`, and can use `T` throughout.
+```code
+// check: run
+// expect: 2 b
+package main;
+
+import "io";
+
+struct Stack<T> {
+    items []T;
+}
+
+func (s *Stack<T>) Push(value T) {
+    s.items.append(value);
+}
+
+func (s *Stack<T>) Pop() T {
+    return s.items.pop();
+}
+
+func (s Stack<T>) Size() int {
+    return len(s.items);
+}
+
+func main() {
+    names: Stack<string>;
+    names.Push("a");
+    names.Push("b");
+    io.Println(names.Size(), " ", names.Pop());
+}
+```
+
+--- methods | Generic methods
+A method can declare its own type parameters after its name, in addition to those of its receiver. They need different names, and, as with functions, you supply them at each call.
+```code
+// check: run
+// expect: 3 true
+package main;
+
+import "io";
+
+struct Box<T> { value T; }
+
+func (b Box<T>) Pair<U>(other U) (T, U) {
+    return b.value, other;
+}
+
+func main() {
+    box := Box<int>{3};
+    number, flag := box.Pair<bool>(true);
+    io.Println(number, " ", flag);
+}
+```
+
+--- families | Struct families
+The bare name of a generic struct, without type arguments, stands for every version of it. As a parameter type or constraint, `Box` accepts `Box<int>`, `Box<string>`, and so on, while `Box<int>` accepts only that one. Combine this with a type switch to handle particular versions specially. List specific cases before general ones, since cases are tried in order.
+```code
+// check: run
+// expect: 5 0
+package main;
+
+import "io";
+
+struct Box<T> { value T; }
+
+func inspect(box Box) int {
+    switch (b := box.(type)) {
+        case Box<int>:
+            return b.value;
+        default:
+            return 0;
+    }
+}
+
+func main() {
+    io.Println(inspect(Box<int>{5}), " ", inspect(Box<string>{"x"}));
+}
+```
+
+--- zero | Default values in generic code
+`zero(T)` gives the default value of a type parameter, which is handy for initializing a result or resetting a value whose type you don't know in advance.
+```code
+// check: run
+// expect: 0
+package main;
+
+import "io";
+
+func reset<T>(value *T) {
+    *value = zero(T);
+}
+
+func main() {
+    count := 42;
+    reset<int>(&count);
+    io.Println(count);
+}
+```
+@note
+Generic code is specialized: the compiler produces a separate copy for each set of type arguments you use, so there is no runtime cost for genericity itself. Type arguments always use angle brackets; square brackets are reserved for indexing and map types.
+
+=== language/memory
+group: Language guide
+title: Memory & pointers
+desc: How Ocean manages memory without a garbage collector, and how to share and allocate data with pointers.
+
+--- ownership | Values own their data
+Ocean has no garbage collector. Instead, every variable owns its value outright. Strings, dynamic arrays, and maps store their contents in heap memory, and that memory belongs to exactly one variable. When the variable goes out of scope (when its block ends, or the function returns early, or a loop exits) the compiler releases the memory automatically. When you assign a new value to a variable, the old contents are released.
+
+This is why assignment, argument passing, and returns copy: if two variables shared the same storage, it would be unclear which one should free it. A copy is fully independent, including all the data nested inside it.
+
+There is one exception: variables captured by closures are kept alive until the program exits, so that closures can always use them.
+
+--- pointers | Pointers
+A pointer holds the address of a value. `&x` takes the address of `x`, giving a `*T` (pointer to `T`). `*p` reaches the value it points at, for reading or writing. Field access works directly through a pointer to a struct: `p.name` means `(*p).name`.
+
+Pointers do not own what they point to. Copying a pointer copies only the address, so both copies refer to the same value. Use a pointer when you want several parts of a program to see and modify the same value.
+```code
+// check: run
+// expect: 7 7
+package main;
+
+import "io";
+
+struct Account { balance int; }
+
+func deposit(account *Account, amount int) {
+    account.balance += amount;
+}
+
+func main() {
+    savings := Account{5};
+    alias := &savings;
+    deposit(&savings, 2);
+    io.Println(savings.balance, " ", alias.balance);
+}
+```
+@after
+A pointer to a local variable is valid only while that variable exists. Don't return the address of a local, and don't keep one after its block has ended. When data must outlive the function that creates it, allocate it with `new`.
+
+Read pointer and array types from left to right. `*[]int` is a pointer to a dynamic array of integers, while `[]*int` is a dynamic array of pointers.
+
+Use `p + n`, `n + p`, or `p - n` to move a pointer by `n` elements of its pointee type. For example, if `p := &items[0]`, then `*(p + 1)` accesses the second item. The operators `+=`, `-=`, `++`, and `--` update the pointer. Subtracting two pointers of the same type into one array gives the signed element distance. Pointer arithmetic performs no bounds checks and traps on `null`.
+
+`ip: *int = 5;` and `ip := 5->(*int);` both initialize a pointer to address `0x5`. Use an explicit cast for integer addresses in reassignments and function arguments, as in `ip = 5->(*int)` or `f(5->(*int))`. Only dereference an address when it points to a live value of the right type.
+
+--- new-free | new and free
+`new(T)` allocates a value of type `T` on the heap, sets it to `zero(T)`, and returns a `*T`. The memory stays allocated until you release it with `free(pointer)`. Ocean never frees it for you, because a pointer doesn't own its target: forgetting to call `free` leaks the memory. `free` releases the value and anything it owns, such as strings and arrays inside a struct, but it does not follow pointer fields.
+```code
+// check: run
+// expect: 2
+// expect: 1
+package main;
+
+import "io";
+
+struct Node {
+    value int;
+    next *Node;
+}
+
+func main() {
+    first := new(Node);
+    first.value = 1;
+    first.next = null;
+
+    second := new(Node);
+    second.value = 2;
+    second.next = first;
+
+    for (n := second; n != null; n = n.next) {
+        io.Println(n.value);
+    }
+    free(second);
+    free(first);
+}
+```
+
+--- null | null versus the zero address
+Ocean's `null` is a reserved marker meaning "points to nothing". It is not the same as address zero. A pointer declared without an initializer holds address zero and is not equal to `null`. That's why the linked list above sets `next` to `null` explicitly; when a list's last node relies on the default value instead, a loop testing `n != null` would run off the end.
+
+Comparing with `null` and dereferencing `null` are both well defined: dereferencing `null` stops the program. A `p := null` declaration is not allowed, since there is no type to infer; write `p: *Node = null;`. Only pointers, interfaces, and `Optional` values can be `null`.
+@note
+When calling C, never pass Ocean's `null` where C expects `NULL`. Use `zero(*void)` instead, and test pointers returned by C with `(pointer -> int) == 0`.
+
+--- buffers | Raw buffers
+Most code never needs anything below arrays, but for low-level work and C interop Ocean has raw buffers. A buffer is contiguous storage with no bounds checks and no length header.
+@table
+Type | Meaning
+`buffer<T, 4>` | Four elements of `T`, stored inline, with a length known at compile time
+`buffer<T, n>` | A runtime-sized buffer on the stack; its elements start uninitialized
+`buffer<T>` | A raw pointer to elements of `T`, with no length and no ownership
+@after
+Indexing a buffer is never checked, so going out of range corrupts memory instead of stopping the program. A buffer's length is not passed along with it: a function that receives a buffer needs a separate count. Every array has a `.data` field that gives a raw buffer view of its elements.
+```code
+// check: run
+// expect: 3
+package main;
+
+import "io";
+
+func fill(data buffer<int>, count int) {
+    for (i := 0; i < count; i++) {
+        data[i] = i;
+    }
+}
+
+func main() {
+    values := []int{0, 0, 0, 0};
+    fill(values.data, len(values));
+    io.Println(values[3]);
+}
+```
+
+--- copying-bytes | Copying raw bytes
+For moving raw memory, the standard `mem` package provides `mem.Copy(source, destination, byteCount)`, which handles overlapping regions correctly. It copies bytes only; use ordinary assignment for values that own strings or arrays.
+@links
+The mem package -> /docs/library/mem/
+
+=== language/c-interop
+group: Language guide
+title: C interop
+desc: Call functions from C libraries with extern declarations, and pass data across the boundary safely.
+
+--- extern | Declaring C functions
+An `extern` declaration describes a function provided by a C library or the C runtime. It uses C's order: the result type, the name, and the parameters with their types first and optional names after. Use Ocean's type names, `void` for "no result", and `()` or `(void)` for no parameters. The linker resolves the function when the program is built.
+
+Call an extern function with the `extern.` prefix. Extern declarations belong to a single file: every file that calls a C function needs its own declaration, and they are never exported to other packages.
+```code
+// check: run
+// expect: Hello from C
+package main;
+
+extern i32 puts(buffer<i8> text);
+
+func main() {
+    extern.puts("Hello from C\0".data);
+}
+```
+
+--- types | Matching C types
+You are responsible for matching the C function's real signature, because the compiler cannot see the C header. Ocean's `int` is 64 bits, while C's `int` is usually 32, so use `i32` for C `int`. On 64-bit platforms Ocean's `int` matches `size_t`. Pointer parameters use Ocean pointer types, and `void *` is written `*void`.
+@table
+C type | Ocean type
+`int`, `unsigned int` | `i32`, `u32`
+`long long`, `size_t` | `int`, `uint` (on 64-bit platforms)
+`double`, `float` | `float`, `f32`
+`char *` | `buffer<i8>`
+`void *` | `*void`
+`T *` | `*T`
+
+--- strings | Passing strings and arrays
+Ocean strings and arrays are not C pointers: they carry a header. Pass their `.data` field, which is a raw pointer to their bytes or elements. C strings also need a terminating zero byte, which Ocean strings do not have, so add one: `"text\0".data`, or `(text + "\0").data` for a variable.
+
+A string's `.data` used as an argument is a temporary copy that is valid only during that call, so C code cannot modify the original string. If C needs to keep the pointer or write into the bytes, pass the `.data` of a named `[]i8` array that outlives the call.
+
+--- pointers | Pointers and void *
+Any typed pointer converts automatically to `*void`. Converting back requires a cast, written with parentheses because the target type is more than one word: `raw -> (*int)`.
+```code
+// check: run
+// expect: 42
+package main;
+
+import "io";
+
+extern *void malloc(int bytes);
+extern void free(*void memory);
+
+func main() {
+    raw := extern.malloc(sizeof(int));
+    if ((raw -> int) == 0) panic "allocation failed";
+    number := raw -> (*int);
+    *number = 42;
+    io.Println(*number);
+    extern.free(number);
+}
+```
+@after
+Structs can be shared with C through pointers. Passing or returning a struct by value across `extern` is not supported. Ocean function values cannot be used as C callback pointers.
+
+--- variadic | C variadic functions
+End the parameter list with `...` to declare a variadic C function such as `printf`. Extra arguments are passed with their Ocean types, except that booleans and small integers are widened to C `int` and floats are passed as `double`, following C's rules. An Ocean `...any` parameter can be forwarded straight into a C variadic call.
+```code
+// check: run
+// expect: 7 2.5 ok
+package main;
+
+extern i32 printf(buffer<i8> format, ...);
+
+func main() {
+    extern.printf("%d %.1f %s\n\0".data, 7 -> i32, 2.5, "ok\0".data);
+}
+```
+@after
+Variadic C calls go through libffi, which Ocean links automatically for programs that use them.
+
+--- linking | Linking libraries
+Functions from the C standard library are available automatically. For other libraries, the compiler links what the standard library needs (for example libcurl for `net/http`), but does not yet accept extra linker flags on the command line. If you emit LLVM IR with `--emit-llvm` and link it yourself with Clang, add the libraries your program uses, such as `-lffi`.
+
+=== language/inline-assembly
+group: Language guide
+title: Inline assembly
+desc: Embed architecture-specific assembly in a function, select it per platform, and exchange values with Ocean variables.
+
+--- blocks | Assembly blocks
+Inside a function, `asm architecture { … }` embeds assembly instructions. The architecture is required and is one of `x86_64`, `aarch64`, `riscv64`, or `wasm`. Add `/linux`, `/macos`, or `/windows` to restrict a block to one operating system. Blocks that don't match the target are left out without being assembled, so one function can contain a version for each platform. Blocks that match run in source order.
+```code
+package main;
+
+func main() {
+    asm x86_64/linux {
+        nop
+    }
+    asm aarch64 {
+        nop
+    }
+}
+```
+@after
+x86-64 assembly uses Intel syntax; AArch64 and RISC-V use the standard LLVM assembler syntax. Put each instruction on its own line: on macOS AArch64, `;` starts a comment, so anything after it on the line is ignored. Comments are `#` on x86-64 and RISC-V, `//` on AArch64, and `/* … */` on all of them.
+
+--- operands | Reading and writing variables
+Write `${name}` to refer to an Ocean variable. Each placeholder is a memory operand for the variable's storage, not a register or a copied value, so use an instruction of the matching width. The variable must be an initialized scalar (a number, boolean, or pointer); collections, structs, and expressions can't be operands.
+```code
+// check: run
+// expect: 10
+package main;
+
+import "io";
+
+func main() {
+    value := 7;
+    asm x86_64 {
+        mov rax, ${value}
+        add rax, 3
+        mov ${value}, rax
+    }
+    io.Println(value);
+}
+```
+@after
+On AArch64 and RISC-V, a block can refer to at most four distinct variables; x86-64 has no such limit. Using the same variable several times counts once. WebAssembly blocks do not support operands yet.
+
+--- rules | Rules for safe blocks
+The compiler assumes a block may change any ordinary register and memory, so you don't need to save general-purpose registers. You must, however, leave certain registers alone: `rbp` on x86-64, `x18` and `x29` on AArch64, and `gp`, `tp`, and `s0` on RISC-V. When a block uses operands, the compiler uses AArch64 `x9`–`x15` and RISC-V `t3`–`t6` to address them, so preserve those too.
+
+Each block starts with an aligned stack. Restore the stack pointer exactly before the block ends, follow the platform calling convention if you call native functions, and never return, jump out of the block, or unwind through it. Use numeric local labels, because a block may be duplicated.
+
+Only instructions the target supports are accepted; there is no CPU-feature selection. Assembly errors are reported by Clang during `ocean check` or `ocean build`.

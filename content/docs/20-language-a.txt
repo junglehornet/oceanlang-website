@@ -1,0 +1,753 @@
+=== language/basics
+group: Language guide
+title: Syntax basics
+desc: How an Ocean source file is laid out: packages, declarations, statements, comments, names, and literals.
+
+--- file-layout | The shape of a source file
+An Ocean source file has three parts, in this order: a package declaration, any imports, and then top-level declarations. Top-level declarations are functions, global variables, and type declarations (`struct`, `enum`, `interface`, and `type`), plus `extern` declarations for C functions.
+```code
+// check: run
+// expect: 6
+package main;
+
+import "io";
+
+total := 0;
+
+func add(amount int) {
+    total += amount;
+}
+
+func main() {
+    add(2);
+    add(4);
+    io.Println(total);
+}
+```
+@after
+Declarations can appear in any order. A function can call another function that is declared further down the file, or in a different file of the same package, without any forward declaration.
+
+--- statements | Statements, blocks, and semicolons
+Simple statements end with a semicolon. Statements that end in a block, such as `if`, `for`, `switch`, and function bodies, do not need one after the closing brace. Conditions are always written in parentheses, and braces group statements into blocks.
+
+There is one convenience: a `return` statement may leave out its semicolon when it is immediately followed by a closing brace, as in `func answer() int { return 42 }`. A line break on its own never ends a statement.
+
+When the body of an `if` or a loop is a single statement, the braces are optional: `if (n < 0) return 0;`.
+
+--- comments | Comments
+`//` starts a comment that runs to the end of the line. `/* … */` encloses a comment that can span lines. Block comments nest, so you can comment out a region of code that already contains a block comment.
+```code
+/* Disabled for now:
+func old() {
+    /* a nested comment is fine */
+}
+*/
+// A line comment.
+```
+
+--- names | Names
+Names (identifiers) may contain letters, digits, and underscores, and may not start with a digit. Unicode letters are allowed. A name made of a single underscore, `_`, is not a name: it is the discard placeholder, used to ignore a value you don't need.
+
+Capitalization matters. A top-level name that starts with an uppercase letter is exported, which means other packages can use it. A name that starts with any other character is private to its own package. See Packages and imports for the details.
+
+These words are reserved and cannot be used as names: `any`, `as`, `asm`, `break`, `case`, `continue`, `default`, `defer`, `else`, `enum`, `extern`, `fallthrough`, `for`, `func`, `goto`, `if`, `import`, `interface`, `match`, `mixed`, `null`, `package`, `panic`, `range`, `return`, `struct`, `switch`, and `type`.
+
+--- literals | Literals
+Integer literals can be written in decimal (`255`), hexadecimal (`0xff`), binary (`0b1010`), or octal (`0o17`). They can be as large as 18446744073709551615, the largest unsigned 64-bit value. Floating-point literals contain a decimal point or an exponent: `3.5`, `0.25`, `1.5e3`, `6e-2`.
+
+`true` and `false` are the two boolean values. `null` is the "no value" marker for pointers, interfaces, and optionals.
+
+A character literal such as `'A'` or `'é'` is an integer holding the character's Unicode code point (`65` and `233` here). It can be assigned to any integer type wide enough to hold it, such as `i8` for ASCII bytes.
+
+String literals are written in double quotes. A raw string is written in backticks: its contents are taken exactly as written, with no escape processing, and it may span several lines.
+```code
+// check: run
+// expect: Tab:	end
+// expect: C:\files\new
+// expect: AAé
+package main;
+
+import "io";
+
+func main() {
+    io.Println("Tab:\tend");
+    io.Println(`C:\files\new`);
+    io.Println("\x41\101\u00e9");
+}
+```
+@table
+Escape | Meaning
+`\n`, `\t`, `\r` | Newline, tab, carriage return
+`\a`, `\b`, `\e`, `\f`, `\v` | Bell, backspace, escape, form feed, vertical tab
+`\\`, `\"`, `\'`, `\?` | Backslash, double quote, single quote, question mark
+`\xHH` | A byte given as two hexadecimal digits
+`\ooo` | A byte given as one to three octal digits
+`\uXXXX`, `\UXXXXXXXX` | A Unicode code point, stored as UTF-8
+
+--- main | The main function and exit status
+A program starts in `func main()` in the package named `main`. If `main` returns nothing, the program exits with status `0` when it finishes. You can instead declare `func main() int` and return the exit status yourself.
+
+To read command-line arguments, call `os.Args()`; its first element is the path of the running program. To stop the program immediately from anywhere, call `os.Exit(code)`. Note that `os.Exit` ends the process at once, without running deferred calls.
+```code
+// check: skip
+package main;
+
+import "io";
+import "os";
+
+func main() int {
+    args := os.Args();
+    if (len(args) < 2) {
+        io.Println("usage: greet NAME");
+        return 2;
+    }
+    io.Println("Hello, ", args[1]);
+    return 0;
+}
+```
+
+--- builtins | Built-in functions
+A handful of functions are part of the language itself and need no import. Each is described in the guide page where it is most relevant.
+@table
+Built-in | Purpose
+`len(value)` | Number of elements in an array or map, or bytes in a string
+`make(T)` | Create an empty dynamic array or map, such as `make([]int)`
+`new(T)` | Allocate a zeroed `T` on the heap and return a `*T`
+`free(value)` | Release heap memory or a dynamic array's storage
+`delete(m, key)` | Remove a key from a map
+`zero(T)` | The default value of type `T`
+`sizeof(T)` or `sizeof(value)` | Storage size in bytes
+`recover()` | Stop a panic from inside a deferred function
+
+=== language/variables
+group: Language guide
+title: Variables & types
+desc: Declare variables, choose numeric types, and convert between them with explicit casts.
+
+--- declaring | Declaring variables
+Write `name := value` to declare a variable whose type is inferred from its initial value, or `name: Type = value` to state the type yourself. If you leave out the initializer, as in `name: Type;`, the variable starts with its type's default value: zero for numbers, `false` for booleans, and empty for strings and collections.
+
+Every variable can be reassigned with `=`. The compound assignments `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=` update a variable in place, and `++` and `--` add or subtract one. Assignments must keep the variable's type: once `count` is an `int`, you cannot store a string in it.
+```code
+// check: run
+// expect: 16 42.50 false
+package main;
+
+import "io";
+
+func main() {
+    count := 12;           // int
+    depth: float = 42.5;   // float, stated explicitly
+    ready: bool;           // starts as false
+    count += 3;
+    count++;
+    io.Println(count, depth, ready);
+}
+```
+@after
+A variable declared inside a block, such as a loop body, exists only inside that block. A block may declare a variable with the same name as one outside it; the inner one shadows the outer one until the block ends.
+
+--- types | Built-in types
+`int` is the everyday integer type. It is a signed 64-bit integer on every platform, so don't assume it matches C's `int`, which is usually 32 bits. Use the sized types when the exact width matters, for example for binary data or when calling C code.
+@table
+Type | Description
+`int`, `i64` | Signed 64-bit integer
+`i32`, `i16`, `i8` | Signed 32-, 16-, and 8-bit integers
+`uint`, `u64` | Unsigned 64-bit integer
+`u32`, `u16`, `u8` | Unsigned 32-, 16-, and 8-bit integers
+`varint(n)`, `varuint(n)` | Signed or unsigned integer of exactly `n` bits, from 1 to 8,388,608
+`float`, `f64` | 64-bit (double-precision) floating point
+`f32` | 32-bit (single-precision) floating point
+`bool` | `true` or `false`
+`string` | Immutable sequence of bytes, usually UTF-8 text
+
+--- integer-conversions | Implicit integer conversions
+Ocean converts one integer type to another automatically only when no value can be lost: the destination must be able to hold every value of the source type. An `i8` can become an `i32`, a `u8` can become a `u16`, and a `u8` can even become an `i16`, because `i16` has room for 0 to 255. Going the other way (to a narrower type, or from signed to unsigned) requires an explicit cast. This rule applies everywhere a value is stored or passed: initializers, assignments, function arguments, return values, and collection elements.
+
+Integer literals are more flexible: a literal can initialize any integer type it fits in, so `small: i8 = 42` is fine. Variables and expressions are judged by their type, not by their current value.
+
+When two integers of different widths meet in arithmetic, the result is 64-bit; if one side is a literal that fits the other side's type, the other side's type is used instead. Mixing signed and unsigned values needs a cast when no signed 64-bit type can hold both ranges.
+@note
+Automatic widening applies to individual numbers only. A `[]i8` array is not a `[]i32`, and a `*i8` pointer is not a `*i32`; the storage behind them has a different layout.
+
+--- exact-widths | Integers of any width
+When none of the standard sizes fits, `varint(n)` gives you a signed integer of exactly `n` bits and `varuint(n)` an unsigned one. The width is a number written in the parentheses, anywhere from 1 up to 8,388,608 bits. A `varint(4)` holds -8 to 7, and a `varuint(4)` holds 0 to 15. Arithmetic wraps at that width, just as it does for the built-in sizes. `varint` and `varuint` are keywords, so you can't use either word as a name.
+
+If you use the same width in several places, give it a name with a defined type, such as `type Nibble varuint(4);`. As with any defined type, convert values in and out with casts: `15->Nibble` and `n->int`.
+```code
+// check: run
+// expect: -8 0 2 true
+package main;
+
+import "io";
+
+type Nibble varuint(4);
+
+func main() {
+    small: varint(4) = 7;
+    small++;                    // past the top of the range: wraps to -8
+    n := 15->Nibble;
+    n++;                        // wraps to 0
+    big: varuint(128) = 340282366920938463463374607431768211455;
+    io.Println(small->int, " ", n->int, " ", sizeof(varint(12)), " ", big == 340282366920938463463374607431768211455);
+}
+```
+@after
+Widths follow the same widening rules as the other integers. A value converts automatically to a type that can hold every value it might have, and anything narrower needs a cast, which keeps only the low bits. Storage is rounded up to whole bytes, which is why `varint(12)` takes 2 bytes. Integer literals keep their exact value even past 64 bits, so `big` above holds the largest 128-bit unsigned number.
+
+`io.Println` can't print these types directly yet. Cast to a standard type first, as in `small->int`. Values wider than 64 bits can't be passed to C functions either: cast them down to a size C understands.
+
+--- floats | Mixing integers and floats
+Integer literals can be used wherever a float is expected, so `x: float = 2`, `measure(3)`, and `if (depth == 0)` all work with float values. In arithmetic and comparisons, an integer variable can also be combined with a float: `1.5 * n` produces a float. Arithmetic between two integers stays an integer, and integer division truncates toward zero, so `7 / 2` is `3` and `-7 / 2` is `-3`.
+
+To store an integer variable in a float variable (or the reverse), cast it explicitly. The remainder operator `%` and the bitwise operators work only on integers.
+
+A floating-point literal takes the expected width. For example, `depth: f32 = 1.5;` uses `f32`, and `depth := 1.5;` infers `float` (`f64`). An `f32` value widens to `float` automatically. Narrowing an already-typed `f64` value requires a cast.
+
+--- casts | Casting with ->
+An explicit conversion is written `value -> Type`. Casting a float to an integer drops the fractional part. Casting a number to `bool` tests whether it is nonzero. When the target type is more than a single name, such as a pointer type or a type from another package, put it in parentheses: `raw -> (*int)`, `value -> (pkg.ID)`.
+```code
+// check: run
+// expect: 300 44 3 true
+package main;
+
+import "io";
+
+func main() {
+    wide: i32 = 300;
+    narrow := wide -> i8;          // 300 does not fit in i8: the value wraps
+    ratio := 3.75;
+    whole := ratio -> int;          // 3
+    nonzero := whole -> bool;       // true
+    io.Println(wide, narrow, whole, nonzero);
+}
+```
+@after
+A cast always does what you ask, even when information is lost. Here `300` doesn't fit in an 8-bit integer, so the result keeps only the low 8 bits.
+
+--- defaults | Default values and zero(T)
+Every type has a default value, which is what an uninitialized variable holds. `zero(Type)` produces that value explicitly. Its argument is a type, not a variable. This is especially useful in generic code, where you may not know the concrete type in advance.
+@table
+Type | Default value
+Numbers | `0`
+`bool` | `false`
+`string` | `""` (empty)
+Arrays, dynamic arrays, maps | Empty (length zero)
+Structs | Every field set to its own default
+Interfaces, `any`, `Optional<T>` | `null`
+Pointers | A zero address, which is not the same as `null`
+@after
+The last row is a common surprise. A pointer declared without an initializer holds address zero, but Ocean's `null` is a separate marker, so `p: *int;` gives `p != null`. Initialize pointers to `null` explicitly when you mean "points to nothing". The memory page explains why.
+
+--- globals | Global variables
+A variable declared outside any function is a global. It is visible in every file of its package, and exported to other packages if its name is capitalized. Globals are set up before `main` runs: first every global receives its default value, then their initializers run. Packages you import are initialized before your package. Within a package, files are processed in filename order and globals in the order they are declared.
+
+Because of this order, an initializer that reads a global declared later sees that global's default value, not its eventual value. Give such globals explicit types.
+@note
+Ocean has no constant declarations yet. Standard-library values such as `math.Pi` and `time.Second` are ordinary exported globals that are treated as constants by convention: don't assign to them.
+
+--- sizeof | sizeof
+`sizeof(Type)` gives the number of bytes a type occupies, including any padding. `sizeof(value)` works out the size from the expression's type without evaluating the expression, so `sizeof(next())` never calls `next`. For example, `sizeof(int)` is `8` and `sizeof(bool)` is `1`.
+
+=== language/operators
+group: Language guide
+title: Operators & equality
+desc: Arithmetic, comparison, logical, and bitwise operators, and how == compares values of every kind.
+
+--- arithmetic | Arithmetic and bitwise operators
+The arithmetic operators are `+`, `-`, `*`, `/`, and `%` (remainder). Integers also support the bitwise operators `&` (and), `|` (or), `^` (exclusive or), `~` (complement), `<<` (shift left), and `>>` (shift right). On unsigned types, division, remainder, comparisons, and right shifts all treat values as unsigned.
+
+`+` also joins strings and arrays; see the strings and collections pages.
+```code
+// check: run
+// expect: 3 1 16 2 7 5 -6
+package main;
+
+import "io";
+
+func main() {
+    io.Println(7 / 2, 7 % 3, 1 << 4, 6 & 3, 6 | 1, 6 ^ 3, ~5);
+}
+```
+
+--- comparison-logic | Comparisons and logic
+`==`, `!=`, `<`, `<=`, `>`, and `>=` compare values and produce a `bool`. `!` negates a boolean. `&&` and `||` combine booleans and short-circuit: the right side is evaluated only when it can change the result. That makes them useful as guards.
+
+The conditional expression `condition ? a : b` evaluates to `a` when the condition is true and `b` otherwise. Both alternatives must have compatible types.
+```code
+package main;
+
+import "io";
+
+func main() {
+    count := 0;
+    // The division only runs when count is not zero.
+    if (count != 0 && 100 / count > 2) {
+        io.Println("large share");
+    }
+    label := count > 10 ? "many" : "few";
+    io.Println(label);
+}
+```
+
+--- equality | What == compares
+Equality works on every type, and it compares values, not storage locations:
+
+Structs are equal when all their fields are equal. Arrays are equal when they have the same length and equal elements, regardless of capacity or where they are stored, and a fixed-size array can be compared with a dynamic array of the same element type. Maps are equal when they contain the same keys mapped to equal values, in any insertion order. Strings are equal when they contain the same bytes. Enum values are equal when they hold the same variant with equal data.
+
+Pointers, raw buffer views, and function values are compared by identity: two pointers are equal when they hold the same address, and nothing is followed. Two function values are equal when they are the same function sharing the same captured variables.
+
+Values of type `any` or of an interface type compare their concrete contents: values of different concrete types are unequal, except that numbers still compare numerically, and two such values that are both `null` are equal. Floating-point comparison follows the usual rules even inside structs and arrays: `0.0 == -0.0` is true, and NaN is not equal to anything, including itself.
+```code
+// check: run
+// expect: true true false
+package main;
+
+import "io";
+
+struct Point { x, y int; }
+
+func main() {
+    a := Point{1, 2};
+    b := Point{1, 2};
+    io.Println(a == b, []int{1, 2} == []int{1, 2}, "abc" == "abd");
+}
+```
+
+--- string-order | Ordering strings
+Strings support `<`, `<=`, `>`, and `>=` as well as equality. They are compared byte by byte, treating each byte as an unsigned value, and the first difference decides. If one string is a prefix of the other, the shorter one comes first, so `"a" < "aa"`. The comparison is case-sensitive and knows nothing about languages or Unicode normalization: `"Z" < "a"` because uppercase letters have smaller byte values.
+
+--- precedence | Grouping
+Use parentheses whenever the grouping of a longer expression is not obvious at a glance. They cost nothing, and they make the intended order explicit to the next reader.
+@note
+Ocean has no operator overloading. To give a struct its own "add" or "compare" behavior, write a named method such as `func (a Vector) Plus(b Vector) Vector`.
+
+=== language/control-flow
+group: Language guide
+title: Control flow
+desc: Make decisions with if and switch, repeat work with the forms of for, and jump with labels.
+
+--- if | if and else
+`if` runs a block when its condition is true; an optional `else` runs otherwise. Chain conditions with `else if`. The condition must be a `bool` and is always written in parentheses.
+```code
+// check: run
+// expect: shallow
+package main;
+
+import "io";
+
+func main() {
+    depth := 40;
+    if (depth > 100) {
+        io.Println("deep");
+    } else if (depth > 10) {
+        io.Println("shallow");
+    } else {
+        io.Println("surface");
+    }
+}
+```
+
+--- initializers | Initializers in if and switch
+An `if` or `switch` can start with a short statement, separated from the condition by a semicolon: `if (count := len(items); count > 10) { … }`. The statement runs first, and any variables it declares exist only inside the `if` (including its `else` branches) or the `switch`. This keeps a value that only the condition needs from leaking into the rest of the function.
+```code
+// check: run
+// expect: big: 4
+// expect: two
+package main;
+
+import "io";
+
+func main() {
+    items := []int{1, 2, 3, 4};
+    if (count := len(items); count > 3) {
+        io.Println("big: ", count);
+    } else {
+        io.Println("small: ", count);
+    }
+
+    switch (half := len(items) / 2; half) {
+        case 2:
+            io.Println("two");
+        default:
+            io.Println("other");
+    }
+}
+```
+@after
+The interfaces page shows a common use: testing a type assertion with `if (text, ok := value.(string); ok)`.
+
+--- for | Counting loops
+The three-part `for` loop has an initializer, a condition, and an update, separated by semicolons. The initializer runs once; the condition is checked before every iteration; the update runs after each iteration. Any part may be left empty, and `for (;;)` loops until something inside it breaks out.
+```code
+// check: run
+// expect: 0
+// expect: 1
+// expect: 2
+package main;
+
+import "io";
+
+func main() {
+    for (i := 0; i < 3; i++) {
+        io.Println(i);
+    }
+}
+```
+
+--- while | Condition-only loops
+A `for` with only a condition repeats while that condition holds, like a `while` loop in other languages. The condition is checked before the first iteration, so the body may not run at all.
+
+Putting `defer` in front of the condition skips that first check: `for (defer cond)` always runs the body once, then checks the condition before each further iteration, like a do-while loop. The three-part form accepts it too. In `for (init; defer cond; update)`, the order is initialize, body, update, check, body, and so on.
+```code
+// check: run
+// expect: 5
+// expect: 2
+package main;
+
+import "io";
+
+func main() {
+    n := 1;
+    for (n < 5) {
+        n += 2;
+    }
+    io.Println(n);        // 5
+
+    tries := 0;
+    for (defer tries < 0) {
+        tries++;          // runs once even though the condition starts false
+    }
+    tries++;
+    io.Println(tries);    // 2
+}
+```
+@note
+This `defer` only changes when a loop's condition is first tested. It is unrelated to the `defer` statement that schedules a call for when a function returns.
+
+--- range | Looping over collections
+`range` visits each element of an array, dynamic array, string, or map. With two variables, an array or string loop receives the index and a copy of the element, and a map loop receives each key and a copy of its value. With one variable, you get only the index (or only the key). Use `_` for a position you don't need.
+```code
+// check: run
+// expect: 0: 10
+// expect: 1: 20
+// expect: 30
+package main;
+
+import "io";
+
+func main() {
+    values := []int{10, 20, 30};
+    for (i, value := range values) {
+        if (i < 2) io.Printfln("{}: {}", i, value);
+    }
+    total := 0;
+    for (_, value := range values) {
+        total += value;
+    }
+    io.Println(total - 30);
+}
+```
+@after
+The collection expression is evaluated once, before the loop starts. Because each element is copied into the loop variable, changing that variable does not change the collection; assign through an index, such as `values[i] = …`, when you mean to. Map loops work on a snapshot of the map's entries and visit them in no particular order. Strings are traversed byte by byte.
+
+--- break-continue | break, continue, and labels
+`break` leaves the innermost loop; `continue` skips to its next iteration (running the update of a three-part loop first). To affect an outer loop from inside a nested one, put a label before the outer loop and name it: `break outer;` or `continue outer;`.
+```code
+// check: run
+// expect: found 2 3
+package main;
+
+import "io";
+
+func main() {
+    outer: for (i := 0; i < 5; i++) {
+        for (j := 0; j < 5; j++) {
+            if (i * j == 6) {
+                io.Println("found ", i, " ", j);
+                break outer;
+            }
+        }
+    }
+}
+```
+
+--- switch | switch
+A `switch` compares a value against each `case` in order and runs the first one that matches. A case can list several values separated by commas. Cases do not fall through into the next one: no `break` is needed. If you want to continue into the following case body, write `fallthrough;` as the last statement of a case. The `default` case runs when nothing else matches, wherever it is written.
+```code
+// check: run
+// expect: busy
+package main;
+
+import "io";
+
+func main() {
+    status := 2;
+    switch (status) {
+        case 0:
+            io.Println("ready");
+        case 1, 2:
+            io.Println("busy");
+        default:
+            io.Println("unknown");
+    }
+}
+```
+@after
+For choosing by the runtime type of a value there is a type switch, `switch (v := value.(type))`, covered on the interfaces page. Enums use `match`, covered on the enums page.
+
+--- condition-switch | Condition switches
+Leave out the value, writing just `switch { … }`, and each `case` holds a boolean condition instead. The first case whose condition is true runs. This is a tidy replacement for a long `if`/`else if` chain.
+```code
+// check: run
+// expect: medium
+package main;
+
+import "io";
+
+func main() {
+    n := 7;
+    switch {
+        case n < 5:
+            io.Println("small");
+        case n < 10:
+            io.Println("medium");
+        default:
+            io.Println("large");
+    }
+}
+```
+
+--- goto | goto and labeled blocks
+`goto label;` jumps to a labeled statement in the same function. A label can also name a block, written `name: { … }`. Jumps can go forward or backward within the current block or to an enclosing block, but they cannot jump into a nested block or loop, and cannot skip over a variable declaration that would still be in scope at the destination.
+```code
+// check: run
+// expect: 5
+package main;
+
+import "io";
+
+func main() {
+    n := 0;
+again: {
+    n++;
+    if (n < 5) goto again;
+}
+    io.Println(n);
+}
+```
+@after
+Most code is clearer with ordinary loops; `goto` is mainly useful for generated code and for jumping to shared cleanup.
+
+=== language/functions
+group: Language guide
+title: Functions
+desc: Parameters and results, multiple and named results, variadic functions, function values, closures, and defer.
+
+--- declaring | Declaring a function
+A function declaration lists its parameters, each written as a name followed by a type, and then its result type. Consecutive parameters with the same type can share it: `func add(a, b int) int`. Leave out the result type for a function that returns nothing. `return` ends the function and, if the function has a result, supplies it.
+```code
+// check: run
+// expect: 5
+package main;
+
+import "io";
+
+func add(a, b int) int {
+    return a + b;
+}
+
+func main() {
+    io.Println(add(2, 3));
+}
+```
+@after
+Functions can call themselves recursively and can call functions declared anywhere in the package.
+
+A function with a result type should return a value on every path. If execution reaches the end of such a function, it returns the type's default value and the compiler prints a warning, so treat that warning as a bug to fix.
+
+--- multiple-results | Multiple results
+List several result types in parentheses to return more than one value. The caller unpacks them with several variables on the left side of `:=` or `=`, and can discard any of them with `_`. This is a common way to return a value together with a success flag.
+```code
+// check: run
+// expect: 4 true
+// expect: 0 false
+package main;
+
+import "io";
+
+func divide(a, b int) (int, bool) {
+    if (b == 0) return 0, false;
+    return a / b, true;
+}
+
+func main() {
+    q, ok := divide(12, 3);
+    io.Println(q, " ", ok);
+    q, ok = divide(1, 0);
+    io.Println(q, " ", ok);
+}
+```
+@after
+A call that returns several values can be passed directly as the whole argument list of another call, or returned directly: `return divide(a, b);`.
+
+--- named-results | Named results
+Named results put names before the type, just like parameters. In `(total, count int)`, both results have type `int`. Named results start at their default values, behave like local variables, and are returned by a bare `return;`.
+```code
+// check: run
+// expect: 6 3
+package main;
+
+import "io";
+
+func stats(values ...int) (total, count int) {
+    for (_, v := range values) {
+        total += v;
+    }
+    count = len(values);
+    return;
+}
+
+func main() {
+    total, count := stats(1, 2, 3);
+    io.Println(total, count);
+}
+```
+
+--- variadic | Variadic functions
+A final parameter written `name ...T` accepts any number of arguments of type `T`, including none. Inside the function it is an ordinary array of `T`. To pass an existing array as the variadic arguments, follow it with `...`. You can put individual arguments before the expanded array: `sum(10, numbers...)`.
+
+A parameter of type `...any` accepts arguments of different types; that is how `io.Println` takes anything you give it.
+```code
+// check: run
+// expect: 0 12 22
+package main;
+
+import "io";
+
+func sum(values ...int) int {
+    total := 0;
+    for (_, v := range values) {
+        total += v;
+    }
+    return total;
+}
+
+func main() {
+    numbers := []int{2, 4, 6};
+    io.Println(sum(), sum(numbers...), sum(10, numbers...));
+}
+```
+
+--- value-semantics | Arguments are copies
+Ocean passes every argument by value. A function that receives a string, array, map, or struct gets its own complete copy, including copies of everything nested inside it, so changes it makes are invisible to the caller. To let a function modify the caller's variable, pass a pointer: write `&variable` at the call and use a parameter of type `*T`. Inside the function, `*name` reaches the original.
+```code
+// check: run
+// expect: 1 5
+package main;
+
+import "io";
+
+func tryChange(value int) {
+    value = 100;     // changes only the local copy
+}
+
+func increment(value *int) {
+    *value += 1;
+}
+
+func main() {
+    a := 1;
+    tryChange(a);
+    b := 4;
+    increment(&b);
+    io.Println(a, b);
+}
+```
+@after
+Copying is predictable but not free: passing a large array by value copies all of it. Pointers are covered in depth on the memory page.
+
+--- function-values | Function values
+Functions are values. A function type starts with `func`, followed by the parameter list and optional results. For example, `func(int) int` takes an `int` and returns one, and `func()` takes and returns nothing. A function literal, `func(n int) int { return n * 2; }`, creates a function value on the spot. You can store function values in variables, pass them to other functions, return them, and keep them in structs and arrays. A named function can be used as a value just by writing its name.
+
+For a function value to fit a function type, the parameter types, result types, and variadic marker must match exactly; parameter names don't matter. Widths count too: `func(i32) int` and `func(int) int` are different types.
+```code
+// check: run
+// expect: 4 9
+package main;
+
+import "io";
+
+func apply(values []int, change func(int) int) []int {
+    result := make([]int);
+    for (_, v := range values) {
+        result.append(change(v));
+    }
+    return result;
+}
+
+func square(n int) int { return n * n; }
+
+func main() {
+    offset := 3;
+    shifted := apply([]int{1, 2}, func(n int) int { return n + offset; });
+    squared := apply([]int{2, 3}, square);
+    io.Println(shifted[0], squared[1]);
+}
+```
+@after
+Write `callbacks: [3]func() int;` to declare an array of three functions. A function returning an array of three integers has type `func() [3]int`.
+
+Calling a function variable that was never assigned panics. Generic functions must be given their type arguments before being used as values, as in `identity<int>`.
+
+--- closures | Closures
+A function literal can use variables from the function around it. It captures them by reference: the literal and the surrounding code share the same variable, so an update by either is seen by both. A closure returned from a function keeps its captured variables alive, and each call of the outer function creates fresh variables.
+```code
+// check: run
+// expect: 1 2 1
+package main;
+
+import "io";
+
+func counter() func() int {
+    count := 0;
+    return func() int {
+        count++;
+        return count;
+    };
+}
+
+func main() {
+    a := counter();
+    b := counter();
+    first := a();
+    second := a();
+    io.Println(first, second, b());
+}
+```
+@after
+Inside loops, each iteration gets its own copy of the `range` variables and of variables declared in the loop body, so closures created in different iterations don't interfere. A variable declared in a three-part loop's initializer, like `i` in `for (i := 0; …)`, is a single variable shared by every iteration.
+
+In the current implementation, captured variables live until the program exits.
+@note
+Methods cannot yet be used as values: `item.Describe` without parentheses is not allowed. Wrap the call in a function literal instead.
+
+--- defer | defer
+`defer` schedules a function call to run when the surrounding function returns, however it returns. The call's arguments are evaluated immediately, when the `defer` statement runs; only the call itself is postponed. Deferred calls run in reverse order, so the most recently deferred runs first. This makes `defer` the natural place for cleanup that must not be forgotten, such as closing a file or unlocking a mutex.
+```code
+// check: run
+// expect: working
+// expect: second
+// expect: first
+package main;
+
+import "io";
+
+func main() {
+    defer io.Println("first");
+    defer io.Println("second");
+    io.Println("working");
+}
+```
+@after
+The return value is computed before deferred calls run. Deferred calls also run while a panic is unwinding the stack, which is how `recover` works; see the errors page.

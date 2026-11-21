@@ -2,8 +2,8 @@
  import './layout.css';
  import { onMount, tick } from 'svelte';
  import { page } from '$app/state';
- import { docs } from '$lib/docs';
- import Logo from '$lib/components/Logo.svelte';
+ import { docs } from '#lib/docs.ts';
+ import Logo from '#lib/components/Logo.svelte';
  let { children } = $props();
  let dark = $state(true);
  let searchOpen = $state(false);

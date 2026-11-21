@@ -12,6 +12,7 @@ Command | What it does
 `ocean build [location]` | Build an executable (for a `main` package) or a library object
 `ocean test [locations…]` | Build and run a package's tests
 `ocean mod init [name]` | Create `ocean.mod` in the current directory
+`ocean fix [locations…]` | Rewrite old postfix type syntax to the current prefix syntax, in place
 `ocean clean --cache` | Delete the build cache
 `ocean check --lsp` | Start the language server for editors
 `ocean --version` | Show the version, commit, and build date (`-v` also works)
@@ -42,6 +43,16 @@ Option | Effect
 Static linking needs static versions of the system libraries (and of libffi or libcurl if your program uses them) to be installed; otherwise the link fails. It only applies to `main` packages.
 
 On Windows, library objects are COFF archives, and building one requires `llvm-ar` on your `PATH`.
+
+--- fix | ocean fix
+Ocean writes type modifiers before the type they modify: `[]int`, `[3]int`, `*T`, and `buffer<int, 4>`. Earlier versions put them after the type (`int[]`, `int[3]`, `T*`, `buffer<int>[4]`). That syntax is now an error, and the message names the replacement, such as "Square brackets go before the type for an array. Did you mean '[]int'?".
+
+`ocean fix` updates old code for you. It rewrites every old-style type in the given packages in place, including `_test.oc` files, and reports how many types it changed in each file. A location is a package directory, a single `.oc` file, or `dir/...` for every package below `dir`. With no location, it fixes the current directory.
+```code Terminal
+ocean fix ./...
+```
+@after
+Nested array sizes switch order, so the meaning stays the same: `int[2][3]` becomes `[3][2]int`, three arrays of two integers. The command leaves everything outside the rewritten types untouched, so you can run it again safely. Running it a second time changes nothing.
 
 --- diagnostics | Errors and warnings
 Diagnostics show the file, line and column, the source line, and a caret pointing at the problem. Errors stop the build; warnings, such as a function that can reach its end without returning a value or a `match` that misses a variant, do not. Errors are red and warnings yellow when the output is a terminal. Set `NO_COLOR=1` to turn color off, or `CLICOLOR_FORCE=1` to force it on when the output is redirected.
@@ -83,7 +94,7 @@ require (
 replace github.com/example/collections => ../collections
 ```
 @after
-`module` names the module. `ocean` records the language version. `require` lists dependencies and the version of each, which is a Git tag or branch name. `replace` substitutes a different source for a dependency: a local directory (which must contain its own `ocean.mod`) or another module and version. Each directive can be written on one line or as a parenthesized block, paths may be quoted, and `//` starts a comment.
+`module` names the module. `ocean` records the language version. `require` lists dependencies and the version of each, which is a Git tag or branch name. `replace` substitutes a different source for a dependency: a local directory (which must contain its own `ocean.mod`) or another module and version. `require` and `replace` can be written on one line or as parenthesized blocks. Paths may be quoted, and `//` starts a comment. A `go <version>` directive is an error.
 
 --- external | External modules
 To use another module, add it to `require` and import its packages by their full path, for example `import "github.com/example/collections/list";`. The first build downloads the repository with Git over HTTPS and stores it in `~/.cache/ocean/modules/<module>@<version>`, where later builds reuse it. `OCEAN_MOD_CACHE` moves this directory.
@@ -180,7 +191,7 @@ struct addCase {
 }
 
 func TestAddCases(t *testing.T) {
-    cases := addCase[]{
+    cases := []addCase{
         addCase{"small", 1, 2, 3},
         addCase{"negative", -4, 1, -3},
     };

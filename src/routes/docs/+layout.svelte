@@ -1,6 +1,6 @@
 <script lang="ts">
  import { page } from '$app/state';
- import { docs, groups } from '$lib/docs';
+ import { docs, groups } from '#lib/docs.ts';
  let { children } = $props();
  let open = $state(false);
 </script>

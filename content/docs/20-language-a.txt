@@ -111,7 +111,7 @@ A handful of functions are part of the language itself and need no import. Each 
 @table
 Built-in | Purpose
 `len(value)` | Number of elements in an array or map, or bytes in a string
-`make(T)` | Create an empty dynamic array or map, such as `make(int[])`
+`make(T)` | Create an empty dynamic array or map, such as `make([]int)`
 `new(T)` | Allocate a zeroed `T` on the heap and return a `*T`
 `free(value)` | Release heap memory or a dynamic array's storage
 `delete(m, key)` | Remove a key from a map
@@ -167,12 +167,14 @@ Integer literals are more flexible: a literal can initialize any integer type it
 
 When two integers of different widths meet in arithmetic, the result is 64-bit; if one side is a literal that fits the other side's type, the other side's type is used instead. Mixing signed and unsigned values needs a cast when no signed 64-bit type can hold both ranges.
 @note
-Automatic widening applies to individual numbers only. An `i8[]` array is not an `i32[]`, and a `*i8` pointer is not a `*i32`; the storage behind them has a different layout.
+Automatic widening applies to individual numbers only. A `[]i8` array is not a `[]i32`, and a `*i8` pointer is not a `*i32`; the storage behind them has a different layout.
 
 --- floats | Mixing integers and floats
 Integer literals can be used wherever a float is expected, so `x: float = 2`, `measure(3)`, and `if (depth == 0)` all work with float values. In arithmetic and comparisons, an integer variable can also be combined with a float: `1.5 * n` produces a float. Arithmetic between two integers stays an integer, and integer division truncates toward zero, so `7 / 2` is `3` and `-7 / 2` is `-3`.
 
 To store an integer variable in a float variable (or the reverse), cast it explicitly. The remainder operator `%` and the bitwise operators work only on integers.
+
+A floating-point literal takes the expected width. For example, `depth: f32 = 1.5;` uses `f32`, and `depth := 1.5;` infers `float` (`f64`). An `f32` value widens to `float` automatically. Narrowing an already-typed `f64` value requires a cast.
 
 --- casts | Casting with ->
 An explicit conversion is written `value -> Type`. Casting a float to an integer drops the fractional part. Casting a number to `bool` tests whether it is nonzero. When the target type is more than a single name, such as a pointer type or a type from another package, put it in parentheses: `raw -> (*int)`, `value -> (pkg.ID)`.
@@ -280,7 +282,7 @@ struct Point { x, y int; }
 func main() {
     a := Point{1, 2};
     b := Point{1, 2};
-    io.Println(a == b, int[]{1, 2} == int[]{1, 2}, "abc" == "abd");
+    io.Println(a == b, []int{1, 2} == []int{1, 2}, "abc" == "abd");
 }
 ```
 
@@ -329,7 +331,7 @@ package main;
 import "io";
 
 func main() {
-    items := int[]{1, 2, 3, 4};
+    items := []int{1, 2, 3, 4};
     if (count := len(items); count > 3) {
         io.Println("big: ", count);
     } else {
@@ -407,7 +409,7 @@ package main;
 import "io";
 
 func main() {
-    values := int[]{10, 20, 30};
+    values := []int{10, 20, 30};
     for (i, value := range values) {
         if (i < 2) io.Printfln("{}: {}", i, value);
     }
@@ -562,7 +564,7 @@ func main() {
 A call that returns several values can be passed directly as the whole argument list of another call, or returned directly: `return divide(a, b);`.
 
 --- named-results | Named results
-Results can be given names. Named results use a different order from parameters: the type comes first, as in `(int total, count)`. Named results start at their default values, behave like local variables, and are returned by a bare `return;`.
+Named results put names before the type, just like parameters. In `(total, count int)`, both results have type `int`. Named results start at their default values, behave like local variables, and are returned by a bare `return;`.
 ```code
 // check: run
 // expect: 6 3
@@ -570,7 +572,7 @@ package main;
 
 import "io";
 
-func stats(values ...int) (int total, count) {
+func stats(values ...int) (total, count int) {
     for (_, v := range values) {
         total += v;
     }
@@ -604,7 +606,7 @@ func sum(values ...int) int {
 }
 
 func main() {
-    numbers := int[]{2, 4, 6};
+    numbers := []int{2, 4, 6};
     io.Println(sum(), sum(numbers...), sum(10, numbers...));
 }
 ```
@@ -638,7 +640,7 @@ func main() {
 Copying is predictable but not free: passing a large array by value copies all of it. Pointers are covered in depth on the memory page.
 
 --- function-values | Function values
-Functions are values. A function type is written like a declaration without names or a body: `func(int) int` takes an `int` and returns one, and `func()` takes and returns nothing. A function literal, `func(n int) int { return n * 2; }`, creates a function value on the spot. You can store function values in variables, pass them to other functions, return them, and keep them in structs and arrays. A named function can be used as a value just by writing its name.
+Functions are values. A function type starts with `func`, followed by the parameter list and optional results. For example, `func(int) int` takes an `int` and returns one, and `func()` takes and returns nothing. A function literal, `func(n int) int { return n * 2; }`, creates a function value on the spot. You can store function values in variables, pass them to other functions, return them, and keep them in structs and arrays. A named function can be used as a value just by writing its name.
 
 For a function value to fit a function type, the parameter types, result types, and variadic marker must match exactly; parameter names don't matter. Widths count too: `func(i32) int` and `func(int) int` are different types.
 ```code
@@ -648,8 +650,8 @@ package main;
 
 import "io";
 
-func apply(values int[], change func(int) int) int[] {
-    result := make(int[]);
+func apply(values []int, change func(int) int) []int {
+    result := make([]int);
     for (_, v := range values) {
         result.append(change(v));
     }
@@ -660,13 +662,13 @@ func square(n int) int { return n * n; }
 
 func main() {
     offset := 3;
-    shifted := apply(int[]{1, 2}, func(n int) int { return n + offset; });
-    squared := apply(int[]{2, 3}, square);
+    shifted := apply([]int{1, 2}, func(n int) int { return n + offset; });
+    squared := apply([]int{2, 3}, square);
     io.Println(shifted[0], squared[1]);
 }
 ```
 @after
-To declare an array of functions, name the function type first with an alias: `type Callback = func() int;` and then `callbacks: Callback[3];`. Writing `func() int[3]` would instead mean "a function returning an array".
+Write `callbacks: [3]func() int;` to declare an array of three functions. A function returning an array of three integers has type `func() [3]int`.
 
 Calling a function variable that was never assigned panics. Generic functions must be given their type arguments before being used as values, as in `identity<int>`.
 

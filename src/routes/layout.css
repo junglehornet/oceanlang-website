@@ -96,7 +96,7 @@
    strings, and fields follow JetBrains Darcula (dark) and IntelliJ Light;
    functions, calls, parameters, and packages use a range of muted blues.
    Italics and weight separate kinds that share a hue. */
-.code-block{--tk-default:#c2ccd6;--tk-keyword:#d58d52;--tk-string:#83a271;--tk-number:#84aac8;--tk-comment:#9a9a9a;--tk-function:#7db0e6;--tk-call:#a3bad8;--tk-field:#ab8fba;--tk-class:#8bbfca;--tk-typeparam:#27babf;--tk-param:#a8acdf;--tk-namespace:#79a0cd}
+.code-block{--tk-default:#c2ccd6;--tk-keyword:#d58d52;--tk-string:#83a271;--tk-number:#84aac8;--tk-comment:#808080;--tk-function:#7db0e6;--tk-call:#a3bad8;--tk-field:#ab8fba;--tk-class:#8bbfca;--tk-typeparam:#27babf;--tk-param:#a8acdf;--tk-namespace:#79a0cd}
 [data-theme=light] .code-block{--tk-default:#1f2d3d;--tk-keyword:#0033b3;--tk-string:#067d17;--tk-number:#1750eb;--tk-comment:#6b6b6b;--tk-function:#1c5a9e;--tk-call:#2f4f86;--tk-field:#871094;--tk-class:#1f4e79;--tk-typeparam:#00707b;--tk-param:#4b3fa3;--tk-namespace:#22578a}
 .code-block pre,.code-block pre code{color:var(--tk-default)}
 .tk-keyword,.tk-type{color:var(--tk-keyword)}

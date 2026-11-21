@@ -210,7 +210,7 @@ export const docs: Doc[] = [
             ],
             [
               "`make(T)`",
-              "Create an empty dynamic array or map, such as `make(int[])`"
+              "Create an empty dynamic array or map, such as `make([]int)`"
             ],
             [
               "`new(T)`",
@@ -307,12 +307,12 @@ export const docs: Doc[] = [
         "title": "Implicit integer conversions",
         "text": "Ocean converts one integer type to another automatically only when no value can be lost: the destination must be able to hold every value of the source type. An `i8` can become an `i32`, a `u8` can become a `u16`, and a `u8` can even become an `i16`, because `i16` has room for 0 to 255. Going the other way (to a narrower type, or from signed to unsigned) requires an explicit cast. This rule applies everywhere a value is stored or passed: initializers, assignments, function arguments, return values, and collection elements.\n\nInteger literals are more flexible: a literal can initialize any integer type it fits in, so `small: i8 = 42` is fine. Variables and expressions are judged by their type, not by their current value.\n\nWhen two integers of different widths meet in arithmetic, the result is 64-bit; if one side is a literal that fits the other side's type, the other side's type is used instead. Mixing signed and unsigned values needs a cast when no signed 64-bit type can hold both ranges.",
         "code": "",
-        "note": "Automatic widening applies to individual numbers only. An `i8[]` array is not an `i32[]`, and a `*i8` pointer is not a `*i32`; the storage behind them has a different layout."
+        "note": "Automatic widening applies to individual numbers only. A `[]i8` array is not a `[]i32`, and a `*i8` pointer is not a `*i32`; the storage behind them has a different layout."
       },
       {
         "id": "floats",
         "title": "Mixing integers and floats",
-        "text": "Integer literals can be used wherever a float is expected, so `x: float = 2`, `measure(3)`, and `if (depth == 0)` all work with float values. In arithmetic and comparisons, an integer variable can also be combined with a float: `1.5 * n` produces a float. Arithmetic between two integers stays an integer, and integer division truncates toward zero, so `7 / 2` is `3` and `-7 / 2` is `-3`.\n\nTo store an integer variable in a float variable (or the reverse), cast it explicitly. The remainder operator `%` and the bitwise operators work only on integers.",
+        "text": "Integer literals can be used wherever a float is expected, so `x: float = 2`, `measure(3)`, and `if (depth == 0)` all work with float values. In arithmetic and comparisons, an integer variable can also be combined with a float: `1.5 * n` produces a float. Arithmetic between two integers stays an integer, and integer division truncates toward zero, so `7 / 2` is `3` and `-7 / 2` is `-3`.\n\nTo store an integer variable in a float variable (or the reverse), cast it explicitly. The remainder operator `%` and the bitwise operators work only on integers.\n\nA floating-point literal takes the expected width. For example, `depth: f32 = 1.5;` uses `f32`, and `depth := 1.5;` infers `float` (`f64`). An `f32` value widens to `float` automatically. Narrowing an already-typed `f64` value requires a cast.",
         "code": "",
         "note": ""
       },
@@ -408,7 +408,7 @@ export const docs: Doc[] = [
         "id": "equality",
         "title": "What == compares",
         "text": "Equality works on every type, and it compares values, not storage locations:\n\nStructs are equal when all their fields are equal. Arrays are equal when they have the same length and equal elements, regardless of capacity or where they are stored, and a fixed-size array can be compared with a dynamic array of the same element type. Maps are equal when they contain the same keys mapped to equal values, in any insertion order. Strings are equal when they contain the same bytes. Enum values are equal when they hold the same variant with equal data.\n\nPointers, raw buffer views, and function values are compared by identity: two pointers are equal when they hold the same address, and nothing is followed. Two function values are equal when they are the same function sharing the same captured variables.\n\nValues of type `any` or of an interface type compare their concrete contents: values of different concrete types are unequal, except that numbers still compare numerically, and two such values that are both `null` are equal. Floating-point comparison follows the usual rules even inside structs and arrays: `0.0 == -0.0` is true, and NaN is not equal to anything, including itself.",
-        "code": "package main;\n\nimport \"io\";\n\nstruct Point { x, y int; }\n\nfunc main() {\n    a := Point{1, 2};\n    b := Point{1, 2};\n    io.Println(a == b, int[]{1, 2} == int[]{1, 2}, \"abc\" == \"abd\");\n}",
+        "code": "package main;\n\nimport \"io\";\n\nstruct Point { x, y int; }\n\nfunc main() {\n    a := Point{1, 2};\n    b := Point{1, 2};\n    io.Println(a == b, []int{1, 2} == []int{1, 2}, \"abc\" == \"abd\");\n}",
         "note": ""
       },
       {
@@ -444,7 +444,7 @@ export const docs: Doc[] = [
         "id": "initializers",
         "title": "Initializers in if and switch",
         "text": "An `if` or `switch` can start with a short statement, separated from the condition by a semicolon: `if (count := len(items); count > 10) { … }`. The statement runs first, and any variables it declares exist only inside the `if` (including its `else` branches) or the `switch`. This keeps a value that only the condition needs from leaking into the rest of the function.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    items := int[]{1, 2, 3, 4};\n    if (count := len(items); count > 3) {\n        io.Println(\"big: \", count);\n    } else {\n        io.Println(\"small: \", count);\n    }\n\n    switch (half := len(items) / 2; half) {\n        case 2:\n            io.Println(\"two\");\n        default:\n            io.Println(\"other\");\n    }\n}",
+        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    items := []int{1, 2, 3, 4};\n    if (count := len(items); count > 3) {\n        io.Println(\"big: \", count);\n    } else {\n        io.Println(\"small: \", count);\n    }\n\n    switch (half := len(items) / 2; half) {\n        case 2:\n            io.Println(\"two\");\n        default:\n            io.Println(\"other\");\n    }\n}",
         "note": "",
         "after": "The interfaces page shows a common use: testing a type assertion with `if (text, ok := value.(string); ok)`."
       },
@@ -466,7 +466,7 @@ export const docs: Doc[] = [
         "id": "range",
         "title": "Looping over collections",
         "text": "`range` visits each element of an array, dynamic array, string, or map. With two variables, an array or string loop receives the index and a copy of the element, and a map loop receives each key and a copy of its value. With one variable, you get only the index (or only the key). Use `_` for a position you don't need.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    values := int[]{10, 20, 30};\n    for (i, value := range values) {\n        if (i < 2) io.Printfln(\"{}: {}\", i, value);\n    }\n    total := 0;\n    for (_, value := range values) {\n        total += value;\n    }\n    io.Println(total - 30);\n}",
+        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    values := []int{10, 20, 30};\n    for (i, value := range values) {\n        if (i < 2) io.Printfln(\"{}: {}\", i, value);\n    }\n    total := 0;\n    for (_, value := range values) {\n        total += value;\n    }\n    io.Println(total - 30);\n}",
         "note": "",
         "after": "The collection expression is evaluated once, before the loop starts. Because each element is copied into the loop variable, changing that variable does not change the collection; assign through an index, such as `values[i] = …`, when you mean to. Map loops work on a snapshot of the map's entries and visit them in no particular order. Strings are traversed byte by byte."
       },
@@ -527,15 +527,15 @@ export const docs: Doc[] = [
       {
         "id": "named-results",
         "title": "Named results",
-        "text": "Results can be given names. Named results use a different order from parameters: the type comes first, as in `(int total, count)`. Named results start at their default values, behave like local variables, and are returned by a bare `return;`.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc stats(values ...int) (int total, count) {\n    for (_, v := range values) {\n        total += v;\n    }\n    count = len(values);\n    return;\n}\n\nfunc main() {\n    total, count := stats(1, 2, 3);\n    io.Println(total, count);\n}",
+        "text": "Named results put names before the type, just like parameters. In `(total, count int)`, both results have type `int`. Named results start at their default values, behave like local variables, and are returned by a bare `return;`.",
+        "code": "package main;\n\nimport \"io\";\n\nfunc stats(values ...int) (total, count int) {\n    for (_, v := range values) {\n        total += v;\n    }\n    count = len(values);\n    return;\n}\n\nfunc main() {\n    total, count := stats(1, 2, 3);\n    io.Println(total, count);\n}",
         "note": ""
       },
       {
         "id": "variadic",
         "title": "Variadic functions",
         "text": "A final parameter written `name ...T` accepts any number of arguments of type `T`, including none. Inside the function it is an ordinary array of `T`. To pass an existing array as the variadic arguments, follow it with `...`. You can put individual arguments before the expanded array: `sum(10, numbers...)`.\n\nA parameter of type `...any` accepts arguments of different types; that is how `io.Println` takes anything you give it.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc sum(values ...int) int {\n    total := 0;\n    for (_, v := range values) {\n        total += v;\n    }\n    return total;\n}\n\nfunc main() {\n    numbers := int[]{2, 4, 6};\n    io.Println(sum(), sum(numbers...), sum(10, numbers...));\n}",
+        "code": "package main;\n\nimport \"io\";\n\nfunc sum(values ...int) int {\n    total := 0;\n    for (_, v := range values) {\n        total += v;\n    }\n    return total;\n}\n\nfunc main() {\n    numbers := []int{2, 4, 6};\n    io.Println(sum(), sum(numbers...), sum(10, numbers...));\n}",
         "note": ""
       },
       {
@@ -549,10 +549,10 @@ export const docs: Doc[] = [
       {
         "id": "function-values",
         "title": "Function values",
-        "text": "Functions are values. A function type is written like a declaration without names or a body: `func(int) int` takes an `int` and returns one, and `func()` takes and returns nothing. A function literal, `func(n int) int { return n * 2; }`, creates a function value on the spot. You can store function values in variables, pass them to other functions, return them, and keep them in structs and arrays. A named function can be used as a value just by writing its name.\n\nFor a function value to fit a function type, the parameter types, result types, and variadic marker must match exactly; parameter names don't matter. Widths count too: `func(i32) int` and `func(int) int` are different types.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc apply(values int[], change func(int) int) int[] {\n    result := make(int[]);\n    for (_, v := range values) {\n        result.append(change(v));\n    }\n    return result;\n}\n\nfunc square(n int) int { return n * n; }\n\nfunc main() {\n    offset := 3;\n    shifted := apply(int[]{1, 2}, func(n int) int { return n + offset; });\n    squared := apply(int[]{2, 3}, square);\n    io.Println(shifted[0], squared[1]);\n}",
+        "text": "Functions are values. A function type starts with `func`, followed by the parameter list and optional results. For example, `func(int) int` takes an `int` and returns one, and `func()` takes and returns nothing. A function literal, `func(n int) int { return n * 2; }`, creates a function value on the spot. You can store function values in variables, pass them to other functions, return them, and keep them in structs and arrays. A named function can be used as a value just by writing its name.\n\nFor a function value to fit a function type, the parameter types, result types, and variadic marker must match exactly; parameter names don't matter. Widths count too: `func(i32) int` and `func(int) int` are different types.",
+        "code": "package main;\n\nimport \"io\";\n\nfunc apply(values []int, change func(int) int) []int {\n    result := make([]int);\n    for (_, v := range values) {\n        result.append(change(v));\n    }\n    return result;\n}\n\nfunc square(n int) int { return n * n; }\n\nfunc main() {\n    offset := 3;\n    shifted := apply([]int{1, 2}, func(n int) int { return n + offset; });\n    squared := apply([]int{2, 3}, square);\n    io.Println(shifted[0], squared[1]);\n}",
         "note": "",
-        "after": "To declare an array of functions, name the function type first with an alias: `type Callback = func() int;` and then `callbacks: Callback[3];`. Writing `func() int[3]` would instead mean \"a function returning an array\".\n\nCalling a function variable that was never assigned panics. Generic functions must be given their type arguments before being used as values, as in `identity<int>`."
+        "after": "Write `callbacks: [3]func() int;` to declare an array of three functions. A function returning an array of three integers has type `func() [3]int`.\n\nCalling a function variable that was never assigned panics. Generic functions must be given their type arguments before being used as values, as in `identity<int>`."
       },
       {
         "id": "closures",
@@ -706,8 +706,8 @@ export const docs: Doc[] = [
       {
         "id": "bytes",
         "title": "Strings and byte arrays",
-        "text": "When you need to change bytes, copy the string into a byte array, which is a dynamic array of `i8`. Assigning a string to an `i8[]` variable makes an independent copy, and casting the array back with `-> string` copies it again. `text.array()` also returns a copy of the bytes, as a fixed-size array.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    text := \"hello\";\n    bytes: i8[] = text;\n    bytes[0] = 'H';\n    io.Println(bytes -> string);\n}",
+        "text": "When you need to change bytes, copy the string into a byte array, which is a dynamic array of `i8`. Assigning a string to a `[]i8` variable makes an independent copy, and casting the array back with `-> string` copies it again. `text.array()` also returns a copy of the bytes, as a fixed-size array.",
+        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    text := \"hello\";\n    bytes: []i8 = text;\n    bytes[0] = 'H';\n    io.Println(bytes -> string);\n}",
         "note": "",
         "after": "Changes to `bytes` never affect `text`. Printing a byte array directly shows its numbers, such as `[72, 101, 108, 108, 111]`; cast it to `string` to print it as text."
       },
@@ -715,7 +715,7 @@ export const docs: Doc[] = [
         "id": "no-strings-package",
         "title": "Common string tasks",
         "text": "There is no separate strings package yet. Tasks such as searching, splitting, and changing case are done with byte loops, slices, and dynamic arrays. For conversions between text and numbers, use the `io` package: `io.Sprint(value)` turns a number into text, while `io.ParseInt(text)` and `io.ParseFloat(text)` read numbers back and report failures as a `Result`.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc split(text string, separator i8) string[] {\n    parts := make(string[]);\n    start := 0;\n    for (i, b := range text) {\n        if (b == separator) {\n            parts.append(text[start:i]);\n            start = i + 1;\n        }\n    }\n    parts.append(text[start:]);\n    return parts;\n}\n\nfunc main() {\n    io.Println(split(\"ocean,sea,wave\", ','));\n}",
+        "code": "package main;\n\nimport \"io\";\n\nfunc split(text string, separator i8) []string {\n    parts := make([]string);\n    start := 0;\n    for (i, b := range text) {\n        if (b == separator) {\n            parts.append(text[start:i]);\n            start = i + 1;\n        }\n    }\n    parts.append(text[start:]);\n    return parts;\n}\n\nfunc main() {\n    io.Println(split(\"ocean,sea,wave\", ','));\n}",
         "note": "",
         "links": [
           {
@@ -742,29 +742,35 @@ export const docs: Doc[] = [
       {
         "id": "overview",
         "title": "Two kinds of arrays",
-        "text": "Ocean has two array types, and choosing between them is mostly a question of whether the length can change.\n\nA fixed-size array, `T[n]`, holds exactly `n` elements of type `T`. Its length never changes, and its elements are stored directly in the variable (on the stack, for a local). A dynamic array, `T[]`, can grow and shrink: it stores its elements in heap memory and has methods such as `append` and `pop`.\n\nBoth kinds are values. Assigning an array, passing it to a function, or returning it copies every element, so two variables never secretly share the same array. Every array also checks its indexes: reading or writing outside the array stops the program with an error that shows the offending line and a call trace.",
+        "text": "Ocean has two array types, and choosing between them is mostly a question of whether the length can change.\n\nA fixed-size array, `[n]T`, holds exactly `n` elements of type `T`. Its length never changes, and its elements are stored directly in the variable (on the stack, for a local). A dynamic array, `[]T`, can grow and shrink: it stores its elements in heap memory and has methods such as `append` and `pop`.\n\nThe brackets always come before the element type. Code written with the older `int[]` and `int[3]` spellings no longer compiles; `ocean fix` updates it.\n\nBoth kinds are values. Assigning an array, passing it to a function, or returning it copies every element, so two variables never secretly share the same array. Every array also checks its indexes: reading or writing outside the array stops the program with an error that shows the offending line and a call trace.",
         "code": "",
-        "note": ""
+        "note": "",
+        "links": [
+          {
+            "label": "Compiler & CLI: ocean fix",
+            "href": "/docs/tooling/cli/#section-fix"
+          }
+        ]
       },
       {
         "id": "fixed",
         "title": "Fixed-size arrays",
-        "text": "Declare a fixed array with its length in the type: `scores: int[3];` starts as three zeros. Initialize it with a list in braces; missing elements are filled with zeros. When the length comes from the list itself, write `int[...]{…}`, or let a plain `:=` infer it. The length can also be a runtime value, as in `buffer: int[n];`, in which case the array is still fixed once created.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    padded: int[3] = {1, 2};\n    counted := int[...]{4, 5};\n    inferred := {6, 7, 8};\n    n := 4;\n    sized: int[n];\n    io.Println(len(inferred), \" \", padded, \" \", len(counted), \" \", len(sized));\n}",
+        "text": "Declare a fixed array with its length in the type: `scores: [3]int;` starts as three zeros. Initialize it with a list in braces; missing elements are filled with zeros. When the length comes from the list itself, write `[...]int{…}`, or let a plain `:=` infer it. The length can also be a runtime value, as in `buffer: [n]int;`, in which case the array is still fixed once created.",
+        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    padded: [3]int = {1, 2};\n    counted := [...]int{4, 5};\n    inferred := {6, 7, 8};\n    n := 4;\n    sized: [n]int;\n    io.Println(len(inferred), \" \", padded, \" \", len(counted), \" \", len(sized));\n}",
         "note": ""
       },
       {
         "id": "array-param",
         "title": "Accepting arrays of any length",
-        "text": "To write a function that accepts a fixed array of any length, use the parameter type `array<T>`. A `T[n]` of any length can be passed to it. `array<T>` describes arrays but cannot create one: construct a `T[n]` and pass it.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc total(values array<int>) int {\n    sum := 0;\n    for (_, v := range values) {\n        sum += v;\n    }\n    return sum;\n}\n\nfunc main() {\n    io.Println(total(int[3]{1, 2, 3}), \" \", total(int[...]{4, 5}));\n}",
+        "text": "To write a function that accepts a fixed array of any length, use the parameter type `array<T>`. A `[n]T` of any length can be passed to it. `array<T>` describes arrays but cannot create one: construct a `[n]T` and pass it.",
+        "code": "package main;\n\nimport \"io\";\n\nfunc total(values array<int>) int {\n    sum := 0;\n    for (_, v := range values) {\n        sum += v;\n    }\n    return sum;\n}\n\nfunc main() {\n    io.Println(total([3]int{1, 2, 3}), \" \", total([...]int{4, 5}));\n}",
         "note": ""
       },
       {
         "id": "dynamic",
         "title": "Dynamic arrays",
-        "text": "A dynamic array, `T[]`, starts empty unless you give it elements. Create one with a literal, `int[]{1, 2}`, with `make(int[])`, or just by declaring `items: int[];`. It grows as you add to it.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    items := make(int[]);\n    items.append(3, 4);       // [3 4]\n    items.prepend(1);         // [1 3 4]\n    items.add(1, 2);          // insert 2 at index 1: [1 2 3 4]\n    io.Println(items, \" \", items.length);\n\n    last := items.pop();      // removes and returns 4\n    first := items.remove(0); // removes and returns 1\n    io.Println(last, \" \", first, \" \", items);\n}",
+        "text": "A dynamic array, `[]T`, starts empty unless you give it elements. Create one with a literal, `[]int{1, 2}`, with `make([]int)`, or just by declaring `items: []int;`. It grows as you add to it.",
+        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    items := make([]int);\n    items.append(3, 4);       // [3 4]\n    items.prepend(1);         // [1 3 4]\n    items.add(1, 2);          // insert 2 at index 1: [1 2 3 4]\n    io.Println(items, \" \", items.length);\n\n    last := items.pop();      // removes and returns 4\n    first := items.remove(0); // removes and returns 1\n    io.Println(last, \" \", first, \" \", items);\n}",
         "note": "",
         "after": "Removing from an empty array, or with an invalid index, is a bounds error. When a dynamic array runs out of room it at least doubles its capacity, so appending one element at a time is efficient on average.",
         "table": {
@@ -808,7 +814,7 @@ export const docs: Doc[] = [
         "id": "indexing",
         "title": "Indexing and checked reads",
         "text": "`items[i]` reads or writes element `i`, counting from zero. An index outside the array is a runtime error that stops the program. When an index might be out of range, use the two-value form instead: `value, ok := items[i];` gives the element and `true`, or the type's default value and `false`, without stopping.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    items := int[]{10, 20};\n    value, ok := items[5];\n    io.Println(value, \" \", ok);\n}",
+        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    items := []int{10, 20};\n    value, ok := items[5];\n    io.Println(value, \" \", ok);\n}",
         "note": ""
       },
       {
@@ -822,22 +828,22 @@ export const docs: Doc[] = [
         "id": "concatenation",
         "title": "Joining arrays with +",
         "text": "`a + b` produces a new array containing the elements of `a` followed by those of `b`. A single element can be added to either end as well: `items + 5` and `0 + items`. With `+=`, the result replaces the left-hand variable; for dynamic arrays, `items += 5` appends in place.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    first := int[]{1, 2};\n    joined := first + int[]{3, 4};\n    first += 5;\n    io.Println(joined, \" \", 0 + first);\n}",
+        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    first := []int{1, 2};\n    joined := first + []int{3, 4};\n    first += 5;\n    io.Println(joined, \" \", 0 + first);\n}",
         "note": ""
       },
       {
         "id": "nested",
         "title": "Arrays of arrays",
-        "text": "Array types read left to right: `int[2]` is \"an array of two ints\", so `int[2][3]` is \"three arrays of two ints\". The first index selects one of the three inner arrays. For rows of varying length, use a dynamic array of dynamic arrays, `int[][]`.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    grid: int[2][3];\n    io.Println(len(grid), \" \", len(grid[0]));\n\n    rows := int[][]{int[]{1, 2}, int[]{3}};\n    rows[1].append(4);\n    io.Println(rows);\n}",
+        "text": "Array types read left to right: `[2]int` is \"an array of two ints\", so `[3][2]int` is \"three arrays of two ints\". The first index selects one of the three inner arrays. For rows of varying length, use a dynamic array of dynamic arrays, `[][]int`.",
+        "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    grid: [3][2]int;\n    io.Println(len(grid), \" \", len(grid[0]));\n\n    rows := [][]int{[]int{1, 2}, []int{3}};\n    rows[1].append(4);\n    io.Println(rows);\n}",
         "note": ""
       },
       {
         "id": "literals",
         "title": "Array literals need a type outside assignments",
-        "text": "A brace list on the right of an assignment or declaration takes its type from the variable: `values: int[] = {1, 2};`. Everywhere else, such as in a function argument or a `return`, the literal needs its type written in front: `sum(int[]{1, 2})`, `return string[]{\"a\"};`.",
+        "text": "A brace list on the right of an assignment or declaration takes its type from the variable: `values: []int = {1, 2};`. Everywhere else, such as in a function argument or a `return`, the literal needs its type written in front: `sum([]int{1, 2})`, `return []string{\"a\"};`.",
         "code": "",
-        "note": "For historical reasons, `int[5]` used as an expression on its own (without braces) creates a dynamic array of five zeros. Use `values: int[5];` or `int[5]{}` when you want a fixed-size array."
+        "note": "For historical reasons, `[5]int` used as an expression on its own (without braces) creates a dynamic array of five zeros. Use `values: [5]int;` or `[5]int{}` when you want a fixed-size array."
       },
       {
         "id": "data",
@@ -885,7 +891,7 @@ export const docs: Doc[] = [
       {
         "id": "keys",
         "title": "Keys and values",
-        "text": "Keys are compared with Ocean's normal equality rules: strings and structs by content, pointers by address. Values can be any type, including arrays, structs, and other maps. A type suffix after `map[K]` belongs to the value type, so `map[string]int[]` maps strings to dynamic arrays of integers.\n\nInterface types, including `any`, can be used for keys, values, or both, and then each entry may hold a different concrete type: `map[any]any{1: \"one\", \"two\": 2}`. With `any` keys, numbers compare by value, so `1` and `1.0` are the same key.",
+        "text": "Keys are compared with Ocean's normal equality rules: strings and structs by content, pointers by address. Values can be any type, including arrays, structs, and other maps. Type modifiers are prefixes, so `map[string][]int` maps strings to dynamic arrays of integers, while `[]map[string]int` is a dynamic array of maps.\n\nInterface types, including `any`, can be used for keys, values, or both, and then each entry may hold a different concrete type: `map[any]any{1: \"one\", \"two\": 2}`. With `any` keys, numbers compare by value, so `1` and `1.0` are the same key.",
         "code": "",
         "note": ""
       },
@@ -931,9 +937,9 @@ export const docs: Doc[] = [
         "id": "value-parameters",
         "title": "Struct parameters",
         "text": "A struct can declare value parameters in parentheses after its name. They become read-only fields at the front of the struct, set once when the value is created. Later fields can use them, for example as array lengths. This is how you write a struct whose shape is chosen at creation time.",
-        "code": "package main;\n\nimport \"io\";\n\nstruct Grid(width, height int) {\n    cells int[width][height];\n}\n\nfunc main() {\n    grid := Grid{3, 2};\n    grid.cells[1][2] = 7;\n    io.Println(grid.width, \" \", grid.height, \" \", grid.cells[1][2]);\n}",
+        "code": "package main;\n\nimport \"io\";\n\nstruct Grid(width, height int) {\n    cells [height][width]int;\n}\n\nfunc main() {\n    grid := Grid{3, 2};\n    grid.cells[1][2] = 7;\n    io.Println(grid.width, \" \", grid.height, \" \", grid.cells[1][2]);\n}",
         "note": "",
-        "after": "`grid.width = 4;` would be a compile-time error: parameters can't change after construction. Because `cells` is `int[width][height]`, it holds `height` rows of `width` integers; see Arrays of arrays on the arrays page."
+        "after": "`grid.width = 4;` would be a compile-time error: parameters can't change after construction. Because `cells` is `[height][width]int`, it holds `height` rows of `width` integers; see Arrays of arrays on the arrays page."
       },
       {
         "id": "defined-types",
@@ -963,7 +969,7 @@ export const docs: Doc[] = [
         "text": "An enum lists the variants a value can be. Each variant can carry its own data: nothing (a unit variant), a list of positional values (a tuple variant), named fields (a record variant), or a fixed value set in the declaration. Variants belong to their enum, so you always write them qualified, as `Shape.Circle`, and two enums can reuse the same variant names.",
         "code": "package main;\n\nimport \"io\";\n\nenum Shape {\n    Dot,\n    Circle(float),\n    Rect{w, h int},\n}\n\nfunc main() {\n    io.Println(Shape.Dot);\n    io.Println(Shape.Circle(1.5));\n    io.Println(Shape.Rect{w: 2, h: 3});\n}",
         "note": "",
-        "after": "Enums are not integers in disguise. A fixed variant, declared as `One := 1` or `Red: int[] = {255, 0, 0}`, is still a variant that carries that value, not a numeric constant. The data inside a variant can't be modified after creation."
+        "after": "Enums are not integers in disguise. A fixed variant, declared as `One := 1` or `Red: []int = {255, 0, 0}`, is still a variant that carries that value, not a numeric constant. The data inside a variant can't be modified after creation."
       },
       {
         "id": "match",
@@ -998,7 +1004,7 @@ export const docs: Doc[] = [
         "id": "optional",
         "title": "Optional<T>",
         "text": "`Optional<T>` is a built-in generic enum for a value that may be absent. It has two variants, `Optional<T>.value(x)` and `Optional<T>.none`. `none` is equal to `null`, so you can assign `null` to an optional and test `opt == null`. An optional declared without a value is `none`.\n\n`hasValue()` reports whether a value is present, and `unwrap()` returns it, panicking if there is none. Use `match` to handle both cases at once.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc find(items string[], wanted string) Optional<int> {\n    for (i, item := range items) {\n        if (item == wanted) return Optional<int>.value(i);\n    }\n    return null;\n}\n\nfunc main() {\n    items := string[]{\"rope\", \"sail\", \"oar\", \"net\"};\n    match (find(items, \"net\")) {\n        Optional.value(index) => io.Println(\"found \", index);\n        Optional.none => io.Println(\"missing\");\n    }\n    if (!find(items, \"anchor\").hasValue()) io.Println(\"missing\");\n}",
+        "code": "package main;\n\nimport \"io\";\n\nfunc find(items []string, wanted string) Optional<int> {\n    for (i, item := range items) {\n        if (item == wanted) return Optional<int>.value(i);\n    }\n    return null;\n}\n\nfunc main() {\n    items := []string{\"rope\", \"sail\", \"oar\", \"net\"};\n    match (find(items, \"net\")) {\n        Optional.value(index) => io.Println(\"found \", index);\n        Optional.none => io.Println(\"missing\");\n    }\n    if (!find(items, \"anchor\").hasValue()) io.Println(\"missing\");\n}",
         "note": "",
         "after": "The other built-in enum, `Result<T>`, carries either a value or an error message. It is the standard way to report recoverable errors, and has its own section on the errors page.",
         "links": [
@@ -1098,7 +1104,7 @@ export const docs: Doc[] = [
         "id": "recover",
         "title": "Recovering from a panic",
         "text": "`recover()` stops a panic, but only when it is called directly inside a deferred function while that panic is unwinding. It returns the panic message as an `any` holding a `string`. In any other situation it returns `null`. After recovery, the function that panicked returns normally to its caller: named results keep their current values, and other results are default values.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc divide(a, b int) (int result) {\n    defer func() {\n        message := recover();\n        if (message != null) {\n            io.Println(\"recovered: \", message.(string));\n            result = -1;\n        }\n    }();\n    if (b == 0) panic \"division by zero\";\n    return a / b;\n}\n\nfunc main() {\n    io.Println(divide(1, 0));\n}",
+        "code": "package main;\n\nimport \"io\";\n\nfunc divide(a, b int) (result int) {\n    defer func() {\n        message := recover();\n        if (message != null) {\n            io.Println(\"recovered: \", message.(string));\n            result = -1;\n        }\n    }();\n    if (b == 0) panic \"division by zero\";\n    return a / b;\n}\n\nfunc main() {\n    io.Println(divide(1, 0));\n}",
         "note": "",
         "after": "Recover from panics sparingly. A deferred cleanup that needs to run is a good use; using panics for ordinary error handling is not, because `Result` makes those paths visible in function signatures."
       }
@@ -1149,10 +1155,10 @@ export const docs: Doc[] = [
       {
         "id": "arrays",
         "title": "Arrays of interface values",
-        "text": "An array whose element type is an interface, such as `Shape[]`, is uniform by default: every element must have the same concrete type. To hold different types in one array, mark it `mixed`. A `mixed any[]` can hold anything.",
-        "code": "package main;\n\nimport \"io\";\n\ninterface Named { Name() string; }\nstruct Square {}\nstruct Circle {}\nfunc (s Square) Name() string { return \"square\"; }\nfunc (c Circle) Name() string { return \"circle\"; }\n\nfunc main() {\n    shapes: mixed Named[] = {Square{}, Circle{}};\n    for (_, shape := range shapes) {\n        io.Println(shape.Name());\n    }\n    anything := mixed any[]{1, \"two\", true};\n    anything.append(3.5);\n}",
+        "text": "An array whose element type is an interface, such as `[]Shape`, is uniform by default: every element must have the same concrete type. To hold different types in one array, mark it `mixed`. A `mixed []any` can hold anything.",
+        "code": "package main;\n\nimport \"io\";\n\ninterface Named { Name() string; }\nstruct Square {}\nstruct Circle {}\nfunc (s Square) Name() string { return \"square\"; }\nfunc (c Circle) Name() string { return \"circle\"; }\n\nfunc main() {\n    shapes: mixed []Named = {Square{}, Circle{}};\n    for (_, shape := range shapes) {\n        io.Println(shape.Name());\n    }\n    anything := mixed []any{1, \"two\", true};\n    anything.append(3.5);\n}",
         "note": "",
-        "after": "A variadic `...any` parameter is a `mixed any[]`, which is why `io.Println(1, \"two\")` works."
+        "after": "A variadic `...any` parameter is a `mixed []any`, which is why `io.Println(1, \"two\")` works."
       },
       {
         "id": "type-lists",
@@ -1173,7 +1179,7 @@ export const docs: Doc[] = [
         "id": "functions",
         "title": "Generic functions",
         "text": "Type parameters are written in angle brackets after a function's name. Each parameter can have a constraint that limits which types are allowed; without one, any type is allowed. When calling a generic function you must supply the type arguments explicitly: Ocean does not infer them.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc larger<T int | float>(a, b T) T {\n    return a > b ? a : b;\n}\n\nfunc indexOf<T>(items array<T>, wanted T) int {\n    for (i := 0; i < len(items); i++) {\n        if (items[i] == wanted) return i;\n    }\n    return -1;\n}\n\nfunc main() {\n    io.Println(larger<int>(3, 9), \" \", larger<float>(1.5, 0.5));\n    io.Println(indexOf<string>(string[...]{\"a\", \"b\"}, \"b\"));\n}",
+        "code": "package main;\n\nimport \"io\";\n\nfunc larger<T int | float>(a, b T) T {\n    return a > b ? a : b;\n}\n\nfunc indexOf<T>(items array<T>, wanted T) int {\n    for (i := 0; i < len(items); i++) {\n        if (items[i] == wanted) return i;\n    }\n    return -1;\n}\n\nfunc main() {\n    io.Println(larger<int>(3, 9), \" \", larger<float>(1.5, 0.5));\n    io.Println(indexOf<string>([...]string{\"a\", \"b\"}, \"b\"));\n}",
         "note": "",
         "after": "Every type supports `==` and `!=`, so `indexOf` works for any `T`. Other operators are allowed only if the constraint guarantees them for every permitted type: `int | float` allows arithmetic and ordering, while an unconstrained `T` allows only equality. The compiler checks generic function bodies even if they are never called."
       },
@@ -1188,7 +1194,7 @@ export const docs: Doc[] = [
         "id": "structs",
         "title": "Generic structs",
         "text": "Structs take type parameters the same way. Every use of the struct names its type arguments, such as `Stack<string>`. Methods of a generic struct name the parameters in the receiver, `(s *Stack<T>)`, and can use `T` throughout.",
-        "code": "package main;\n\nimport \"io\";\n\nstruct Stack<T> {\n    items T[];\n}\n\nfunc (s *Stack<T>) Push(value T) {\n    s.items.append(value);\n}\n\nfunc (s *Stack<T>) Pop() T {\n    return s.items.pop();\n}\n\nfunc (s Stack<T>) Size() int {\n    return len(s.items);\n}\n\nfunc main() {\n    names: Stack<string>;\n    names.Push(\"a\");\n    names.Push(\"b\");\n    io.Println(names.Size(), \" \", names.Pop());\n}",
+        "code": "package main;\n\nimport \"io\";\n\nstruct Stack<T> {\n    items []T;\n}\n\nfunc (s *Stack<T>) Push(value T) {\n    s.items.append(value);\n}\n\nfunc (s *Stack<T>) Pop() T {\n    return s.items.pop();\n}\n\nfunc (s Stack<T>) Size() int {\n    return len(s.items);\n}\n\nfunc main() {\n    names: Stack<string>;\n    names.Push(\"a\");\n    names.Push(\"b\");\n    io.Println(names.Size(), \" \", names.Pop());\n}",
         "note": ""
       },
       {
@@ -1233,7 +1239,7 @@ export const docs: Doc[] = [
         "text": "A pointer holds the address of a value. `&x` takes the address of `x`, giving a `*T` (pointer to `T`). `*p` reaches the value it points at, for reading or writing. Field access works directly through a pointer to a struct: `p.name` means `(*p).name`.\n\nPointers do not own what they point to. Copying a pointer copies only the address, so both copies refer to the same value. Use a pointer when you want several parts of a program to see and modify the same value.",
         "code": "package main;\n\nimport \"io\";\n\nstruct Account { balance int; }\n\nfunc deposit(account *Account, amount int) {\n    account.balance += amount;\n}\n\nfunc main() {\n    savings := Account{5};\n    alias := &savings;\n    deposit(&savings, 2);\n    io.Println(savings.balance, \" \", alias.balance);\n}",
         "note": "",
-        "after": "A pointer to a local variable is valid only while that variable exists. Don't return the address of a local, and don't keep one after its block has ended. When data must outlive the function that creates it, allocate it with `new`.\n\nNote the order in pointer types: `*int[]` is a pointer to an array of integers, while `int*[]` is an array of pointers."
+        "after": "A pointer to a local variable is valid only while that variable exists. Don't return the address of a local, and don't keep one after its block has ended. When data must outlive the function that creates it, allocate it with `new`.\n\nRead pointer and array types from left to right. `*[]int` is a pointer to a dynamic array of integers, while `[]*int` is a dynamic array of pointers.\n\nUse `p + n`, `n + p`, or `p - n` to move a pointer by `n` elements of its pointee type. For example, if `p := &items[0]`, then `*(p + 1)` accesses the second item. The operators `+=`, `-=`, `++`, and `--` update the pointer. Subtracting two pointers of the same type into one array gives the signed element distance. Pointer arithmetic performs no bounds checks and traps on `null`.\n\n`ip: *int = 5;` and `ip := 5->(*int);` both initialize a pointer to address `0x5`. Use an explicit cast for integer addresses in reassignments and function arguments, as in `ip = 5->(*int)` or `f(5->(*int))`. Only dereference an address when it points to a live value of the right type."
       },
       {
         "id": "new-free",
@@ -1253,7 +1259,7 @@ export const docs: Doc[] = [
         "id": "buffers",
         "title": "Raw buffers",
         "text": "Most code never needs anything below arrays, but for low-level work and C interop Ocean has raw buffers. A buffer is contiguous storage with no bounds checks and no length header.",
-        "code": "package main;\n\nimport \"io\";\n\nfunc fill(data buffer<int>[], count int) {\n    for (i := 0; i < count; i++) {\n        data[i] = i;\n    }\n}\n\nfunc main() {\n    values := int[]{0, 0, 0, 0};\n    fill(values.data, len(values));\n    io.Println(values[3]);\n}",
+        "code": "package main;\n\nimport \"io\";\n\nfunc fill(data buffer<int>, count int) {\n    for (i := 0; i < count; i++) {\n        data[i] = i;\n    }\n}\n\nfunc main() {\n    values := []int{0, 0, 0, 0};\n    fill(values.data, len(values));\n    io.Println(values[3]);\n}",
         "note": "",
         "after": "Indexing a buffer is never checked, so going out of range corrupts memory instead of stopping the program. A buffer's length is not passed along with it: a function that receives a buffer needs a separate count. Every array has a `.data` field that gives a raw buffer view of its elements.",
         "table": {
@@ -1263,15 +1269,15 @@ export const docs: Doc[] = [
           ],
           "rows": [
             [
-              "`buffer<T>[4]`",
+              "`buffer<T, 4>`",
               "Four elements of `T`, stored inline, with a length known at compile time"
             ],
             [
-              "`buffer<T>[n]`",
+              "`buffer<T, n>`",
               "A runtime-sized buffer on the stack; its elements start uninitialized"
             ],
             [
-              "`buffer<T>` or `buffer<T>[]`",
+              "`buffer<T>`",
               "A raw pointer to elements of `T`, with no length and no ownership"
             ]
           ]
@@ -1347,7 +1353,7 @@ export const docs: Doc[] = [
       {
         "id": "strings",
         "title": "Passing strings and arrays",
-        "text": "Ocean strings and arrays are not C pointers: they carry a header. Pass their `.data` field, which is a raw pointer to their bytes or elements. C strings also need a terminating zero byte, which Ocean strings do not have, so add one: `\"text\\0\".data`, or `(text + \"\\0\").data` for a variable.\n\nA string's `.data` used as an argument is a temporary copy that is valid only during that call, so C code cannot modify the original string. If C needs to keep the pointer or write into the bytes, pass the `.data` of a named `i8[]` array that outlives the call.",
+        "text": "Ocean strings and arrays are not C pointers: they carry a header. Pass their `.data` field, which is a raw pointer to their bytes or elements. C strings also need a terminating zero byte, which Ocean strings do not have, so add one: `\"text\\0\".data`, or `(text + \"\\0\").data` for a variable.\n\nA string's `.data` used as an argument is a temporary copy that is valid only during that call, so C code cannot modify the original string. If C needs to keep the pointer or write into the bytes, pass the `.data` of a named `[]i8` array that outlives the call.",
         "code": "",
         "note": ""
       },
@@ -1440,14 +1446,14 @@ export const docs: Doc[] = [
         "id": "state",
         "title": "Define the state",
         "text": "Start `main.oc` with the package, the imports, and the types. An `Item` has a label and a done flag. `Checklist` is the model: the items, the index of the selected row, and the message shown after a toggle.\n\nThe `revision` field and the `clearNoticeMsg` type are for clearing that message later. Each toggle will start a timer, and when the timer fires it sends back a `clearNoticeMsg`. The revision number tells `Update` whether the message it is about to clear is still the latest one.",
-        "code": "package main;\n\nimport \"io\";\nimport \"term/tui\";\nimport \"time\";\n\nstruct Item { Label string; Done bool; }\nstruct Checklist {\n    items Item[];\n    cursor int;\n    notice string;\n    revision int;\n}\nstruct clearNoticeMsg { revision int; }",
+        "code": "package main;\n\nimport \"io\";\nimport \"term/tui\";\nimport \"time\";\n\nstruct Item { Label string; Done bool; }\nstruct Checklist {\n    items []Item;\n    cursor int;\n    notice string;\n    revision int;\n}\nstruct clearNoticeMsg { revision int; }",
         "note": ""
       },
       {
         "id": "initial",
         "title": "The starting model",
         "text": "`initialModel` builds the checklist the app starts with. Fields that aren't set get their default values, so every item starts unchecked, the cursor starts on the first row, and there is no notice.\n\n`Init` has no work to do at startup, so it returns `tui.NoCmd`, the command that does nothing. Note that it returns `tui.NoCmd` itself, without parentheses: a command is a function value, and the framework is the one that calls it.",
-        "code": "func initialModel() Checklist {\n    return Checklist{items: Item[]{\n        Item{Label: \"Learn the model/update/view loop\"},\n        Item{Label: \"Toggle a checklist item\"},\n        Item{Label: \"Write a terminal app in Ocean\"}\n    }};\n}\n\nfunc (model Checklist) Init() tui.Cmd { return tui.NoCmd; }",
+        "code": "func initialModel() Checklist {\n    return Checklist{items: []Item{\n        Item{Label: \"Learn the model/update/view loop\"},\n        Item{Label: \"Toggle a checklist item\"},\n        Item{Label: \"Write a terminal app in Ocean\"}\n    }};\n}\n\nfunc (model Checklist) Init() tui.Cmd { return tui.NoCmd; }",
         "note": ""
       },
       {
@@ -1477,7 +1483,7 @@ export const docs: Doc[] = [
         "id": "complete",
         "title": "The complete program",
         "text": "Here is the whole of `main.oc`. If you built it up piece by piece, compare against this; otherwise copy it as is.",
-        "code": "package main;\n\nimport \"io\";\nimport \"term/tui\";\nimport \"time\";\n\nstruct Item { Label string; Done bool; }\nstruct Checklist {\n    items Item[];\n    cursor int;\n    notice string;\n    revision int;\n}\nstruct clearNoticeMsg { revision int; }\n\nfunc initialModel() Checklist {\n    return Checklist{items: Item[]{\n        Item{Label: \"Learn the model/update/view loop\"},\n        Item{Label: \"Toggle a checklist item\"},\n        Item{Label: \"Write a terminal app in Ocean\"}\n    }};\n}\n\nfunc (model Checklist) Init() tui.Cmd { return tui.NoCmd; }\n\nfunc (model Checklist) Update(message tui.Msg) (tui.Model, tui.Cmd) {\n    switch (event := message.(type)) {\n        case tui.KeyMsg:\n            if (event.Alt) return model, tui.NoCmd;\n            if (event.Key == \"ctrl+c\" || event.Text == \"q\") return model, tui.Quit;\n            if (len(model.items) == 0) return model, tui.NoCmd;\n\n            if (event.Key == \"up\" || event.Text == \"k\") {\n                if (model.cursor > 0) model.cursor--;\n            } else if (event.Key == \"down\" || event.Text == \"j\") {\n                if (model.cursor + 1 < len(model.items)) model.cursor++;\n            } else if (event.Key == \"space\" || event.Key == \"enter\") {\n                index := model.cursor;\n                model.items[index].Done = !model.items[index].Done;\n                model.notice = model.items[index].Done ? \"Item checked.\" : \"Item unchecked.\";\n                model.revision++;\n                return model, tui.Tick(900 * time.Millisecond, clearNoticeMsg{model.revision});\n            }\n        case clearNoticeMsg:\n            if (event.revision == model.revision) model.notice = \"\";\n        case tui.EOFMsg:\n            return model, tui.Quit;\n    }\n    return model, tui.NoCmd;\n}\n\nfunc (model Checklist) completed() int {\n    count := 0;\n    for (i := 0; i < len(model.items); i++) {\n        if (model.items[i].Done) count++;\n    }\n    return count;\n}\n\nfunc (model Checklist) View() string {\n    text := \"Ocean checklist\\n\\n\";\n    for (i := 0; i < len(model.items); i++) {\n        cursor := i == model.cursor ? \"> \" : \"  \";\n        checkbox := model.items[i].Done ? \"[x] \" : \"[ ] \";\n        text += cursor + checkbox + model.items[i].Label + \"\\n\";\n    }\n    if (len(model.items) == 0) text += \"No items yet.\\n\";\n    text += \"\\nCompleted: \" + io.Sprint(model.completed()) + \"/\" + io.Sprint(len(model.items));\n    text += \"\\n\" + model.notice;\n    text += \"\\n\\nUp/Down or j/k: move | Space/Enter: toggle | q: quit\";\n    return text;\n}\n\nfunc main() {\n    program := tui.NewProgram(initialModel(), tui.Options{AltScreen: true});\n    final := program.Run().unwrap();\n    checklist := final.(Checklist);\n    io.Printfln(\"Checked {} of {} items.\", checklist.completed(), len(checklist.items)).unwrap();\n}",
+        "code": "package main;\n\nimport \"io\";\nimport \"term/tui\";\nimport \"time\";\n\nstruct Item { Label string; Done bool; }\nstruct Checklist {\n    items []Item;\n    cursor int;\n    notice string;\n    revision int;\n}\nstruct clearNoticeMsg { revision int; }\n\nfunc initialModel() Checklist {\n    return Checklist{items: []Item{\n        Item{Label: \"Learn the model/update/view loop\"},\n        Item{Label: \"Toggle a checklist item\"},\n        Item{Label: \"Write a terminal app in Ocean\"}\n    }};\n}\n\nfunc (model Checklist) Init() tui.Cmd { return tui.NoCmd; }\n\nfunc (model Checklist) Update(message tui.Msg) (tui.Model, tui.Cmd) {\n    switch (event := message.(type)) {\n        case tui.KeyMsg:\n            if (event.Alt) return model, tui.NoCmd;\n            if (event.Key == \"ctrl+c\" || event.Text == \"q\") return model, tui.Quit;\n            if (len(model.items) == 0) return model, tui.NoCmd;\n\n            if (event.Key == \"up\" || event.Text == \"k\") {\n                if (model.cursor > 0) model.cursor--;\n            } else if (event.Key == \"down\" || event.Text == \"j\") {\n                if (model.cursor + 1 < len(model.items)) model.cursor++;\n            } else if (event.Key == \"space\" || event.Key == \"enter\") {\n                index := model.cursor;\n                model.items[index].Done = !model.items[index].Done;\n                model.notice = model.items[index].Done ? \"Item checked.\" : \"Item unchecked.\";\n                model.revision++;\n                return model, tui.Tick(900 * time.Millisecond, clearNoticeMsg{model.revision});\n            }\n        case clearNoticeMsg:\n            if (event.revision == model.revision) model.notice = \"\";\n        case tui.EOFMsg:\n            return model, tui.Quit;\n    }\n    return model, tui.NoCmd;\n}\n\nfunc (model Checklist) completed() int {\n    count := 0;\n    for (i := 0; i < len(model.items); i++) {\n        if (model.items[i].Done) count++;\n    }\n    return count;\n}\n\nfunc (model Checklist) View() string {\n    text := \"Ocean checklist\\n\\n\";\n    for (i := 0; i < len(model.items); i++) {\n        cursor := i == model.cursor ? \"> \" : \"  \";\n        checkbox := model.items[i].Done ? \"[x] \" : \"[ ] \";\n        text += cursor + checkbox + model.items[i].Label + \"\\n\";\n    }\n    if (len(model.items) == 0) text += \"No items yet.\\n\";\n    text += \"\\nCompleted: \" + io.Sprint(model.completed()) + \"/\" + io.Sprint(len(model.items));\n    text += \"\\n\" + model.notice;\n    text += \"\\n\\nUp/Down or j/k: move | Space/Enter: toggle | q: quit\";\n    return text;\n}\n\nfunc main() {\n    program := tui.NewProgram(initialModel(), tui.Options{AltScreen: true});\n    final := program.Run().unwrap();\n    checklist := final.(Checklist);\n    io.Printfln(\"Checked {} of {} items.\", checklist.completed(), len(checklist.items)).unwrap();\n}",
         "note": ""
       },
       {
@@ -1547,6 +1553,10 @@ export const docs: Doc[] = [
               "Create `ocean.mod` in the current directory"
             ],
             [
+              "`ocean fix [locations…]`",
+              "Rewrite old postfix type syntax to the current prefix syntax, in place"
+            ],
+            [
               "`ocean clean --cache`",
               "Delete the build cache"
             ],
@@ -1607,6 +1617,15 @@ export const docs: Doc[] = [
             ]
           ]
         }
+      },
+      {
+        "id": "fix",
+        "title": "ocean fix",
+        "text": "Ocean writes type modifiers before the type they modify: `[]int`, `[3]int`, `*T`, and `buffer<int, 4>`. Earlier versions put them after the type (`int[]`, `int[3]`, `T*`, `buffer<int>[4]`). That syntax is now an error, and the message names the replacement, such as \"Square brackets go before the type for an array. Did you mean '[]int'?\".\n\n`ocean fix` updates old code for you. It rewrites every old-style type in the given packages in place, including `_test.oc` files, and reports how many types it changed in each file. A location is a package directory, a single `.oc` file, or `dir/...` for every package below `dir`. With no location, it fixes the current directory.",
+        "code": "ocean fix ./...",
+        "note": "",
+        "lang": "Terminal",
+        "after": "Nested array sizes switch order, so the meaning stays the same: `int[2][3]` becomes `[3][2]int`, three arrays of two integers. The command leaves everything outside the rewritten types untouched, so you can run it again safely. Running it a second time changes nothing."
       },
       {
         "id": "diagnostics",
@@ -1683,7 +1702,7 @@ export const docs: Doc[] = [
         "code": "module github.com/example/application\n\nocean 0.1\n\nrequire (\n    github.com/example/collections v1.2.3\n)\n\nreplace github.com/example/collections => ../collections",
         "note": "",
         "lang": "ocean.mod",
-        "after": "`module` names the module. `ocean` records the language version. `require` lists dependencies and the version of each, which is a Git tag or branch name. `replace` substitutes a different source for a dependency: a local directory (which must contain its own `ocean.mod`) or another module and version. Each directive can be written on one line or as a parenthesized block, paths may be quoted, and `//` starts a comment."
+        "after": "`module` names the module. `ocean` records the language version. `require` lists dependencies and the version of each, which is a Git tag or branch name. `replace` substitutes a different source for a dependency: a local directory (which must contain its own `ocean.mod`) or another module and version. `require` and `replace` can be written on one line or as parenthesized blocks. Paths may be quoted, and `//` starts a comment. A `go <version>` directive is an error."
       },
       {
         "id": "external",
@@ -1786,7 +1805,7 @@ export const docs: Doc[] = [
         "id": "subtests",
         "title": "Subtests and table tests",
         "text": "`t.Run` runs a named subtest, which is handy for checking many cases with one loop. Subtest names are joined to the parent's with a slash in reports, such as `TestAdd/negative`, and a failing subtest fails its parent.",
-        "code": "// file: ocean.mod\nmodule example.com/arithmetic\n\nocean 0.1\n// file: arithmetic.oc\npackage arithmetic;\n\nfunc Add(a, b int) int {\n    return a + b;\n}\n// file: arithmetic_test.oc\npackage arithmetic;\n\nimport \"testing\";\n\nstruct addCase {\n    name string;\n    a, b, want int;\n}\n\nfunc TestAddCases(t *testing.T) {\n    cases := addCase[]{\n        addCase{\"small\", 1, 2, 3},\n        addCase{\"negative\", -4, 1, -3},\n    };\n    for (_, c := range cases) {\n        t.Run(c.name, func(t *testing.T) {\n            if (Add(c.a, c.b) != c.want) t.Errorf(\"got {}, want {}\", Add(c.a, c.b), c.want);\n        });\n    }\n}",
+        "code": "// file: ocean.mod\nmodule example.com/arithmetic\n\nocean 0.1\n// file: arithmetic.oc\npackage arithmetic;\n\nfunc Add(a, b int) int {\n    return a + b;\n}\n// file: arithmetic_test.oc\npackage arithmetic;\n\nimport \"testing\";\n\nstruct addCase {\n    name string;\n    a, b, want int;\n}\n\nfunc TestAddCases(t *testing.T) {\n    cases := []addCase{\n        addCase{\"small\", 1, 2, 3},\n        addCase{\"negative\", -4, 1, -3},\n    };\n    for (_, c := range cases) {\n        t.Run(c.name, func(t *testing.T) {\n            if (Add(c.a, c.b) != c.want) t.Errorf(\"got {}, want {}\", Add(c.a, c.b), c.want);\n        });\n    }\n}",
         "note": ""
       },
       {
@@ -1972,7 +1991,7 @@ export const docs: Doc[] = [
         "text": "`io.Print` writes its arguments to standard output, and `io.Println` does the same and adds a newline. They accept any number of values of any type. A space is inserted between two neighboring arguments only when neither is a string, so `io.Println(1, 2)` prints `1 2`, while `io.Println(\"x=\", 1)` prints `x=1`. Include spaces in your strings where you want them.",
         "code": "package main;\n\nimport \"io\";\n\nfunc main() {\n    io.Println(1, 2, 3);\n    io.Println(\"total: \", 42);\n    io.Println(\"pi is about \", 3.14159);\n}",
         "note": "",
-        "after": "Floats print with two decimal places by default. Use `io.FormatFloat(x)` for the full precision needed to read the value back exactly. Structs print as `{x: 1, y: 2}`, arrays as `[1 2 3]`, and enums as `Shape.Circle(1.50)`. Byte arrays (`i8[]`) print as numbers; cast them to `string` to print text. Maps cannot be printed directly yet."
+        "after": "Floats print with two decimal places by default. Use `io.FormatFloat(x)` for the full precision needed to read the value back exactly. Structs print as `{x: 1, y: 2}`, arrays as `[1 2 3]`, and enums as `Shape.Circle(1.50)`. Byte arrays (`[]i8`) print as numbers; cast them to `string` to print text. Maps cannot be printed directly yet."
       },
       {
         "id": "formatting",
@@ -2124,7 +2143,7 @@ export const docs: Doc[] = [
             ],
             [
               "`Readchunk(n)`",
-              "`Result<i8[]>`: up to `n` bytes; empty at end of file"
+              "`Result<[]i8>`: up to `n` bytes; empty at end of file"
             ],
             [
               "`Readend()`",
@@ -2199,7 +2218,7 @@ export const docs: Doc[] = [
         "id": "configuring",
         "title": "Working directory and environment",
         "text": "Set fields on the command before running it. `Dir` sets the working directory, and `Env` replaces the environment with a list of `KEY=value` strings; leaving either empty inherits the parent's.",
-        "code": "package main;\n\nimport \"io\";\nimport \"os/exec\";\n\nfunc main() {\n    command := exec.Command(\"/bin/sh\", \"-c\", \"echo \\\"$GREETING from $PWD\\\"\");\n    command.Env = string[]{\"GREETING=hello\"};\n    command.Dir = \"/tmp\";\n    io.Print(command.Output().unwrap());\n}",
+        "code": "package main;\n\nimport \"io\";\nimport \"os/exec\";\n\nfunc main() {\n    command := exec.Command(\"/bin/sh\", \"-c\", \"echo \\\"$GREETING from $PWD\\\"\");\n    command.Env = []string{\"GREETING=hello\"};\n    command.Dir = \"/tmp\";\n    io.Print(command.Output().unwrap());\n}",
         "note": ""
       },
       {
@@ -2227,15 +2246,15 @@ export const docs: Doc[] = [
       {
         "id": "marshal",
         "title": "Encoding",
-        "text": "`json.Marshal(value)` returns the JSON text for a value as a `Result<string>`. It handles `null`, booleans, strings, integers, finite floats, structs, `map[string]any`, `mixed any[]`, and dynamic arrays of strings, integers, floats, and booleans. Struct fields are written with their exact names, including private ones; object keys from maps come out sorted. Types it can't encode produce an error.",
-        "code": "package main;\n\nimport \"io\";\nimport \"encoding/json\";\n\nstruct Person {\n    Name string;\n    Age int;\n    Tags string[];\n}\n\nfunc main() {\n    io.Println(json.Marshal(Person{\"Ada\", 36, string[]{\"math\"}}).unwrap());\n}",
+        "text": "`json.Marshal(value)` returns the JSON text for a value as a `Result<string>`. It handles `null`, booleans, strings, integers, finite floats, structs, `map[string]any`, `mixed []any`, and dynamic arrays of strings, integers, floats, and booleans. Struct fields are written with their exact names, including private ones; object keys from maps come out sorted. Types it can't encode produce an error.",
+        "code": "package main;\n\nimport \"io\";\nimport \"encoding/json\";\n\nstruct Person {\n    Name string;\n    Age int;\n    Tags []string;\n}\n\nfunc main() {\n    io.Println(json.Marshal(Person{\"Ada\", 36, []string{\"math\"}}).unwrap());\n}",
         "note": ""
       },
       {
         "id": "unmarshal",
         "title": "Decoding",
-        "text": "`json.Unmarshal(text)` parses a document and returns a `Result<any>`. Objects become `map[string]any`, arrays become `mixed any[]`, strings, booleans, and `null` become their Ocean equivalents, and numbers become `json.Number`. Use type assertions or type switches to navigate the result.",
-        "code": "package main;\n\nimport \"io\";\nimport \"encoding/json\";\n\nfunc main() {\n    value := json.Unmarshal(\"{\\\"name\\\": \\\"Lin\\\", \\\"scores\\\": [1, 2.5]}\").unwrap();\n    object := value.(map[string]any);\n    name := object[\"name\"].(string);\n    scores := object[\"scores\"].(mixed any[]);\n    second := scores[1].(json.Number).Float64().unwrap();\n    io.Println(name, \" \", len(scores), \" \", second);\n}",
+        "text": "`json.Unmarshal(text)` parses a document and returns a `Result<any>`. Objects become `map[string]any`, arrays become `mixed []any`, strings, booleans, and `null` become their Ocean equivalents, and numbers become `json.Number`. Use type assertions or type switches to navigate the result.",
+        "code": "package main;\n\nimport \"io\";\nimport \"encoding/json\";\n\nfunc main() {\n    value := json.Unmarshal(\"{\\\"name\\\": \\\"Lin\\\", \\\"scores\\\": [1, 2.5]}\").unwrap();\n    object := value.(map[string]any);\n    name := object[\"name\"].(string);\n    scores := object[\"scores\"].(mixed []any);\n    second := scores[1].(json.Number).Float64().unwrap();\n    io.Println(name, \" \", len(scores), \" \", second);\n}",
         "note": ""
       },
       {
@@ -2579,7 +2598,7 @@ export const docs: Doc[] = [
         "id": "spawn",
         "title": "Starting and waiting for threads",
         "text": "`threads.Spawn(job)` starts a function or closure on a new operating-system thread and returns a thread ID. `threads.Await(id)` waits until that thread has finished, and `threads.IsDone(id)` checks without waiting. `threads.CurrentID()` returns the calling thread's ID; the main thread is 0. IDs are never reused, and passing an unknown ID to any function panics.",
-        "code": "package main;\n\nimport \"io\";\nimport \"threads\";\nimport \"sync\";\n\nfunc main() {\n    total := 0;\n    lock: sync.Mutex;\n    ids := make(int[]);\n    for (i := 0; i < 4; i++) {\n        ids.append(threads.Spawn(func() {\n            lock.Lock();\n            defer lock.Unlock();\n            total += 1;\n        }));\n    }\n    for (_, id := range ids) {\n        threads.Await(id);\n    }\n    io.Println(total);\n}",
+        "code": "package main;\n\nimport \"io\";\nimport \"threads\";\nimport \"sync\";\n\nfunc main() {\n    total := 0;\n    lock: sync.Mutex;\n    ids := make([]int);\n    for (i := 0; i < 4; i++) {\n        ids.append(threads.Spawn(func() {\n            lock.Lock();\n            defer lock.Unlock();\n            total += 1;\n        }));\n    }\n    for (_, id := range ids) {\n        threads.Await(id);\n    }\n    io.Println(total);\n}",
         "note": "",
         "after": "Closures share the variables they capture, so threads that modify the same variable must coordinate, here with a `sync.Mutex`. When `main` returns, the program waits for every thread still running before it exits."
       },
@@ -2663,7 +2682,7 @@ export const docs: Doc[] = [
         "id": "copy",
         "title": "mem.Copy",
         "text": "`mem.Copy(source, destination, byteCount)` copies exactly `byteCount` bytes from one address to another. The regions may overlap. Both pointers are `*void`, so any typed pointer can be passed. Both regions must be valid for the full count; a count of zero touches neither, and a negative count panics.",
-        "code": "package main;\n\nimport \"io\";\nimport \"mem\";\n\nfunc main() {\n    data: u8[4] = {1, 2, 3, 4};\n    mem.Copy(&data[0], &data[1], 3);   // shift the first three bytes right\n    io.Println(data);\n}",
+        "code": "package main;\n\nimport \"io\";\nimport \"mem\";\n\nfunc main() {\n    data: [4]u8 = {1, 2, 3, 4};\n    mem.Copy(&data[0], &data[1], 3);   // shift the first three bytes right\n    io.Println(data);\n}",
         "note": "",
         "after": "`mem.Copy` moves bytes only. It does not copy the strings or arrays a value owns, so use ordinary assignment for anything other than plain numeric data."
       }

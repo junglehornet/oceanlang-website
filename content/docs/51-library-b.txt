@@ -236,7 +236,7 @@ import "sync";
 func main() {
     total := 0;
     lock: sync.Mutex;
-    ids := make(int[]);
+    ids := make([]int);
     for (i := 0; i < 4; i++) {
         ids.append(threads.Spawn(func() {
             lock.Lock();
@@ -324,7 +324,7 @@ import "io";
 import "mem";
 
 func main() {
-    data: u8[4] = {1, 2, 3, 4};
+    data: [4]u8 = {1, 2, 3, 4};
     mem.Copy(&data[0], &data[1], 3);   // shift the first three bytes right
     io.Println(data);
 }

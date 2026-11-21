@@ -105,7 +105,7 @@ package main;
 
 import "io";
 
-func divide(a, b int) (int result) {
+func divide(a, b int) (result int) {
     defer func() {
         message := recover();
         if (message != null) {
@@ -228,7 +228,7 @@ func main() {
 ```
 
 --- arrays | Arrays of interface values
-An array whose element type is an interface, such as `Shape[]`, is uniform by default: every element must have the same concrete type. To hold different types in one array, mark it `mixed`. A `mixed any[]` can hold anything.
+An array whose element type is an interface, such as `[]Shape`, is uniform by default: every element must have the same concrete type. To hold different types in one array, mark it `mixed`. A `mixed []any` can hold anything.
 ```code
 // check: run
 // expect: square
@@ -244,16 +244,16 @@ func (s Square) Name() string { return "square"; }
 func (c Circle) Name() string { return "circle"; }
 
 func main() {
-    shapes: mixed Named[] = {Square{}, Circle{}};
+    shapes: mixed []Named = {Square{}, Circle{}};
     for (_, shape := range shapes) {
         io.Println(shape.Name());
     }
-    anything := mixed any[]{1, "two", true};
+    anything := mixed []any{1, "two", true};
     anything.append(3.5);
 }
 ```
 @after
-A variadic `...any` parameter is a `mixed any[]`, which is why `io.Println(1, "two")` works.
+A variadic `...any` parameter is a `mixed []any`, which is why `io.Println(1, "two")` works.
 
 --- type-lists | Type-list interfaces
 Instead of methods, an interface can contain a list of types separated by `|`. Such an interface is satisfied by exactly those types. Prefix a type with `~` to also accept defined types built on it: `~int` matches `int` and `type UserID int`, but not narrower types such as `i32`. Type lists are mostly used as constraints for generics, described on the next page, but they can also be used directly as parameter types.
@@ -292,7 +292,7 @@ func indexOf<T>(items array<T>, wanted T) int {
 
 func main() {
     io.Println(larger<int>(3, 9), " ", larger<float>(1.5, 0.5));
-    io.Println(indexOf<string>(string[...]{"a", "b"}, "b"));
+    io.Println(indexOf<string>([...]string{"a", "b"}, "b"));
 }
 ```
 @after
@@ -311,7 +311,7 @@ package main;
 import "io";
 
 struct Stack<T> {
-    items T[];
+    items []T;
 }
 
 func (s *Stack<T>) Push(value T) {
@@ -442,7 +442,11 @@ func main() {
 @after
 A pointer to a local variable is valid only while that variable exists. Don't return the address of a local, and don't keep one after its block has ended. When data must outlive the function that creates it, allocate it with `new`.
 
-Note the order in pointer types: `*int[]` is a pointer to an array of integers, while `int*[]` is an array of pointers.
+Read pointer and array types from left to right. `*[]int` is a pointer to a dynamic array of integers, while `[]*int` is a dynamic array of pointers.
+
+Use `p + n`, `n + p`, or `p - n` to move a pointer by `n` elements of its pointee type. For example, if `p := &items[0]`, then `*(p + 1)` accesses the second item. The operators `+=`, `-=`, `++`, and `--` update the pointer. Subtracting two pointers of the same type into one array gives the signed element distance. Pointer arithmetic performs no bounds checks and traps on `null`.
+
+`ip: *int = 5;` and `ip := 5->(*int);` both initialize a pointer to address `0x5`. Use an explicit cast for integer addresses in reassignments and function arguments, as in `ip = 5->(*int)` or `f(5->(*int))`. Only dereference an address when it points to a live value of the right type.
 
 --- new-free | new and free
 `new(T)` allocates a value of type `T` on the heap, sets it to `zero(T)`, and returns a `*T`. The memory stays allocated until you release it with `free(pointer)`. Ocean never frees it for you, because a pointer doesn't own its target: forgetting to call `free` leaks the memory. `free` releases the value and anything it owns, such as strings and arrays inside a struct, but it does not follow pointer fields.
@@ -487,9 +491,9 @@ When calling C, never pass Ocean's `null` where C expects `NULL`. Use `zero(*voi
 Most code never needs anything below arrays, but for low-level work and C interop Ocean has raw buffers. A buffer is contiguous storage with no bounds checks and no length header.
 @table
 Type | Meaning
-`buffer<T>[4]` | Four elements of `T`, stored inline, with a length known at compile time
-`buffer<T>[n]` | A runtime-sized buffer on the stack; its elements start uninitialized
-`buffer<T>` or `buffer<T>[]` | A raw pointer to elements of `T`, with no length and no ownership
+`buffer<T, 4>` | Four elements of `T`, stored inline, with a length known at compile time
+`buffer<T, n>` | A runtime-sized buffer on the stack; its elements start uninitialized
+`buffer<T>` | A raw pointer to elements of `T`, with no length and no ownership
 @after
 Indexing a buffer is never checked, so going out of range corrupts memory instead of stopping the program. A buffer's length is not passed along with it: a function that receives a buffer needs a separate count. Every array has a `.data` field that gives a raw buffer view of its elements.
 ```code
@@ -499,14 +503,14 @@ package main;
 
 import "io";
 
-func fill(data buffer<int>[], count int) {
+func fill(data buffer<int>, count int) {
     for (i := 0; i < count; i++) {
         data[i] = i;
     }
 }
 
 func main() {
-    values := int[]{0, 0, 0, 0};
+    values := []int{0, 0, 0, 0};
     fill(values.data, len(values));
     io.Println(values[3]);
 }
@@ -552,7 +556,7 @@ C type | Ocean type
 --- strings | Passing strings and arrays
 Ocean strings and arrays are not C pointers: they carry a header. Pass their `.data` field, which is a raw pointer to their bytes or elements. C strings also need a terminating zero byte, which Ocean strings do not have, so add one: `"text\0".data`, or `(text + "\0").data` for a variable.
 
-A string's `.data` used as an argument is a temporary copy that is valid only during that call, so C code cannot modify the original string. If C needs to keep the pointer or write into the bytes, pass the `.data` of a named `i8[]` array that outlives the call.
+A string's `.data` used as an argument is a temporary copy that is valid only during that call, so C code cannot modify the original string. If C needs to keep the pointer or write into the bytes, pass the `.data` of a named `[]i8` array that outlives the call.
 
 --- pointers | Pointers and void *
 Any typed pointer converts automatically to `*void`. Converting back requires a cast, written with parentheses because the target type is more than one word: `raw -> (*int)`.

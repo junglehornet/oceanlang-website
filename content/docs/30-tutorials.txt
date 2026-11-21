@@ -50,7 +50,7 @@ import "time";
 
 struct Item { Label string; Done bool; }
 struct Checklist {
-    items Item[];
+    items []Item;
     cursor int;
     notice string;
     revision int;
@@ -65,7 +65,7 @@ struct clearNoticeMsg { revision int; }
 ```code
 // check: skip
 func initialModel() Checklist {
-    return Checklist{items: Item[]{
+    return Checklist{items: []Item{
         Item{Label: "Learn the model/update/view loop"},
         Item{Label: "Toggle a checklist item"},
         Item{Label: "Write a terminal app in Ocean"}
@@ -172,7 +172,7 @@ import "time";
 
 struct Item { Label string; Done bool; }
 struct Checklist {
-    items Item[];
+    items []Item;
     cursor int;
     notice string;
     revision int;
@@ -180,7 +180,7 @@ struct Checklist {
 struct clearNoticeMsg { revision int; }
 
 func initialModel() Checklist {
-    return Checklist{items: Item[]{
+    return Checklist{items: []Item{
         Item{Label: "Learn the model/update/view loop"},
         Item{Label: "Toggle a checklist item"},
         Item{Label: "Write a terminal app in Ocean"}

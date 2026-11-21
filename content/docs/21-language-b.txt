@@ -138,7 +138,7 @@ func main() {
 ```
 
 --- bytes | Strings and byte arrays
-When you need to change bytes, copy the string into a byte array, which is a dynamic array of `i8`. Assigning a string to an `i8[]` variable makes an independent copy, and casting the array back with `-> string` copies it again. `text.array()` also returns a copy of the bytes, as a fixed-size array.
+When you need to change bytes, copy the string into a byte array, which is a dynamic array of `i8`. Assigning a string to a `[]i8` variable makes an independent copy, and casting the array back with `-> string` copies it again. `text.array()` also returns a copy of the bytes, as a fixed-size array.
 ```code
 // check: run
 // expect: Hello
@@ -148,7 +148,7 @@ import "io";
 
 func main() {
     text := "hello";
-    bytes: i8[] = text;
+    bytes: []i8 = text;
     bytes[0] = 'H';
     io.Println(bytes -> string);
 }
@@ -165,8 +165,8 @@ package main;
 
 import "io";
 
-func split(text string, separator i8) string[] {
-    parts := make(string[]);
+func split(text string, separator i8) []string {
+    parts := make([]string);
     start := 0;
     for (i, b := range text) {
         if (b == separator) {
@@ -196,12 +196,16 @@ desc: Fixed-size arrays, growable dynamic arrays, slicing, concatenation, and bo
 --- overview | Two kinds of arrays
 Ocean has two array types, and choosing between them is mostly a question of whether the length can change.
 
-A fixed-size array, `T[n]`, holds exactly `n` elements of type `T`. Its length never changes, and its elements are stored directly in the variable (on the stack, for a local). A dynamic array, `T[]`, can grow and shrink: it stores its elements in heap memory and has methods such as `append` and `pop`.
+A fixed-size array, `[n]T`, holds exactly `n` elements of type `T`. Its length never changes, and its elements are stored directly in the variable (on the stack, for a local). A dynamic array, `[]T`, can grow and shrink: it stores its elements in heap memory and has methods such as `append` and `pop`.
+
+The brackets always come before the element type. Code written with the older `int[]` and `int[3]` spellings no longer compiles; `ocean fix` updates it.
 
 Both kinds are values. Assigning an array, passing it to a function, or returning it copies every element, so two variables never secretly share the same array. Every array also checks its indexes: reading or writing outside the array stops the program with an error that shows the offending line and a call trace.
+@links
+Compiler & CLI: ocean fix -> /docs/tooling/cli/#section-fix
 
 --- fixed | Fixed-size arrays
-Declare a fixed array with its length in the type: `scores: int[3];` starts as three zeros. Initialize it with a list in braces; missing elements are filled with zeros. When the length comes from the list itself, write `int[...]{…}`, or let a plain `:=` infer it. The length can also be a runtime value, as in `buffer: int[n];`, in which case the array is still fixed once created.
+Declare a fixed array with its length in the type: `scores: [3]int;` starts as three zeros. Initialize it with a list in braces; missing elements are filled with zeros. When the length comes from the list itself, write `[...]int{…}`, or let a plain `:=` infer it. The length can also be a runtime value, as in `buffer: [n]int;`, in which case the array is still fixed once created.
 ```code
 // check: run
 // expect: 3 [1 2 0] 2 4
@@ -210,17 +214,17 @@ package main;
 import "io";
 
 func main() {
-    padded: int[3] = {1, 2};
-    counted := int[...]{4, 5};
+    padded: [3]int = {1, 2};
+    counted := [...]int{4, 5};
     inferred := {6, 7, 8};
     n := 4;
-    sized: int[n];
+    sized: [n]int;
     io.Println(len(inferred), " ", padded, " ", len(counted), " ", len(sized));
 }
 ```
 
 --- array-param | Accepting arrays of any length
-To write a function that accepts a fixed array of any length, use the parameter type `array<T>`. A `T[n]` of any length can be passed to it. `array<T>` describes arrays but cannot create one: construct a `T[n]` and pass it.
+To write a function that accepts a fixed array of any length, use the parameter type `array<T>`. A `[n]T` of any length can be passed to it. `array<T>` describes arrays but cannot create one: construct a `[n]T` and pass it.
 ```code
 // check: run
 // expect: 6 9
@@ -237,12 +241,12 @@ func total(values array<int>) int {
 }
 
 func main() {
-    io.Println(total(int[3]{1, 2, 3}), " ", total(int[...]{4, 5}));
+    io.Println(total([3]int{1, 2, 3}), " ", total([...]int{4, 5}));
 }
 ```
 
 --- dynamic | Dynamic arrays
-A dynamic array, `T[]`, starts empty unless you give it elements. Create one with a literal, `int[]{1, 2}`, with `make(int[])`, or just by declaring `items: int[];`. It grows as you add to it.
+A dynamic array, `[]T`, starts empty unless you give it elements. Create one with a literal, `[]int{1, 2}`, with `make([]int)`, or just by declaring `items: []int;`. It grows as you add to it.
 ```code
 // check: run
 // expect: [1 2 3 4] 4
@@ -252,7 +256,7 @@ package main;
 import "io";
 
 func main() {
-    items := make(int[]);
+    items := make([]int);
     items.append(3, 4);       // [3 4]
     items.prepend(1);         // [1 3 4]
     items.add(1, 2);          // insert 2 at index 1: [1 2 3 4]
@@ -285,7 +289,7 @@ package main;
 import "io";
 
 func main() {
-    items := int[]{10, 20};
+    items := []int{10, 20};
     value, ok := items[5];
     io.Println(value, " ", ok);
 }
@@ -304,15 +308,15 @@ package main;
 import "io";
 
 func main() {
-    first := int[]{1, 2};
-    joined := first + int[]{3, 4};
+    first := []int{1, 2};
+    joined := first + []int{3, 4};
     first += 5;
     io.Println(joined, " ", 0 + first);
 }
 ```
 
 --- nested | Arrays of arrays
-Array types read left to right: `int[2]` is "an array of two ints", so `int[2][3]` is "three arrays of two ints". The first index selects one of the three inner arrays. For rows of varying length, use a dynamic array of dynamic arrays, `int[][]`.
+Array types read left to right: `[2]int` is "an array of two ints", so `[3][2]int` is "three arrays of two ints". The first index selects one of the three inner arrays. For rows of varying length, use a dynamic array of dynamic arrays, `[][]int`.
 ```code
 // check: run
 // expect: 3 2
@@ -322,19 +326,19 @@ package main;
 import "io";
 
 func main() {
-    grid: int[2][3];
+    grid: [3][2]int;
     io.Println(len(grid), " ", len(grid[0]));
 
-    rows := int[][]{int[]{1, 2}, int[]{3}};
+    rows := [][]int{[]int{1, 2}, []int{3}};
     rows[1].append(4);
     io.Println(rows);
 }
 ```
 
 --- literals | Array literals need a type outside assignments
-A brace list on the right of an assignment or declaration takes its type from the variable: `values: int[] = {1, 2};`. Everywhere else, such as in a function argument or a `return`, the literal needs its type written in front: `sum(int[]{1, 2})`, `return string[]{"a"};`.
+A brace list on the right of an assignment or declaration takes its type from the variable: `values: []int = {1, 2};`. Everywhere else, such as in a function argument or a `return`, the literal needs its type written in front: `sum([]int{1, 2})`, `return []string{"a"};`.
 @note
-For historical reasons, `int[5]` used as an expression on its own (without braces) creates a dynamic array of five zeros. Use `values: int[5];` or `int[5]{}` when you want a fixed-size array.
+For historical reasons, `[5]int` used as an expression on its own (without braces) creates a dynamic array of five zeros. Use `values: [5]int;` or `[5]int{}` when you want a fixed-size array.
 
 --- data | The size and data fields
 Every array has two low-level fields. `.size` is the number of bytes its elements occupy, so `len(items)` equals `items.size / sizeof(element type)`. `.data` is a raw pointer to the first element, used when passing an array's contents to C code. Indexing through `.data` is not bounds-checked. The memory and C interop pages explain when to use them.
@@ -397,7 +401,7 @@ func main() {
 ```
 
 --- keys | Keys and values
-Keys are compared with Ocean's normal equality rules: strings and structs by content, pointers by address. Values can be any type, including arrays, structs, and other maps. A type suffix after `map[K]` belongs to the value type, so `map[string]int[]` maps strings to dynamic arrays of integers.
+Keys are compared with Ocean's normal equality rules: strings and structs by content, pointers by address. Values can be any type, including arrays, structs, and other maps. Type modifiers are prefixes, so `map[string][]int` maps strings to dynamic arrays of integers, while `[]map[string]int` is a dynamic array of maps.
 
 Interface types, including `any`, can be used for keys, values, or both, and then each entry may hold a different concrete type: `map[any]any{1: "one", "two": 2}`. With `any` keys, numbers compare by value, so `1` and `1.0` are the same key.
 
@@ -480,7 +484,7 @@ package main;
 import "io";
 
 struct Grid(width, height int) {
-    cells int[width][height];
+    cells [height][width]int;
 }
 
 func main() {
@@ -490,7 +494,7 @@ func main() {
 }
 ```
 @after
-`grid.width = 4;` would be a compile-time error: parameters can't change after construction. Because `cells` is `int[width][height]`, it holds `height` rows of `width` integers; see Arrays of arrays on the arrays page.
+`grid.width = 4;` would be a compile-time error: parameters can't change after construction. Because `cells` is `[height][width]int`, it holds `height` rows of `width` integers; see Arrays of arrays on the arrays page.
 
 --- defined-types | Defining new types
 `type Name Existing;` defines a new type with the same representation as an existing one but its own identity. A `UserID` defined from `int` is not interchangeable with `int` or with another type defined from `int`; converting requires a cast. This catches mix-ups, such as passing a user ID where an order ID is expected. Defined types can have their own methods.
@@ -545,7 +549,7 @@ func main() {
 }
 ```
 @after
-Enums are not integers in disguise. A fixed variant, declared as `One := 1` or `Red: int[] = {255, 0, 0}`, is still a variant that carries that value, not a numeric constant. The data inside a variant can't be modified after creation.
+Enums are not integers in disguise. A fixed variant, declared as `One := 1` or `Red: []int = {255, 0, 0}`, is still a variant that carries that value, not a numeric constant. The data inside a variant can't be modified after creation.
 
 --- match | Taking enums apart with match
 `match` checks which variant a value holds and runs the matching arm. Each arm is a pattern, `=>`, and a statement or a block. Patterns can bind the variant's data to names: positional names for a tuple, and field names for a record (or `alias = field` to bind a field under a different name). Use `_` to ignore a position. An arm written as just the enum's name, such as `Shape => …`, is the default and matches anything not handled earlier.
@@ -643,7 +647,7 @@ package main;
 
 import "io";
 
-func find(items string[], wanted string) Optional<int> {
+func find(items []string, wanted string) Optional<int> {
     for (i, item := range items) {
         if (item == wanted) return Optional<int>.value(i);
     }
@@ -651,7 +655,7 @@ func find(items string[], wanted string) Optional<int> {
 }
 
 func main() {
-    items := string[]{"rope", "sail", "oar", "net"};
+    items := []string{"rope", "sail", "oar", "net"};
     match (find(items, "net")) {
         Optional.value(index) => io.Println("found ", index);
         Optional.none => io.Println("missing");

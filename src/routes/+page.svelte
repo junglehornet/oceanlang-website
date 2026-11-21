@@ -1,5 +1,5 @@
 <script lang="ts">
- import Code from '$lib/components/Code.svelte';
+ import Code from '#lib/components/Code.svelte';
  let selected = $state(0);
  let ripples = $state<{ id: number; x: number; y: number }[]>([]);
  let nextRippleId = 0;

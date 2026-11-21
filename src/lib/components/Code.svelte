@@ -1,6 +1,6 @@
 <script lang="ts">
  import { onDestroy } from 'svelte';
- import { highlight } from '$lib/highlight';
+ import { highlight } from '#lib/highlight.ts';
  let { code, label = 'Ocean' }: { code: string; label?: string } = $props();
  let copied = $state(false);
  let failed = $state(false);

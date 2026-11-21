@@ -1,8 +1,8 @@
 <script lang="ts">
- import Code from '$lib/components/Code.svelte';
- import Prose from '$lib/components/Prose.svelte';
- import Inline from '$lib/components/Inline.svelte';
- import type { Doc } from '$lib/docs';
+ import Code from '#lib/components/Code.svelte';
+ import Prose from '#lib/components/Prose.svelte';
+ import Inline from '#lib/components/Inline.svelte';
+ import type { Doc } from '#lib/docs.ts';
  let { data }: {data: {doc:Doc; previous?:Doc; next?:Doc}} = $props();
  function codeLabel(code: string) {
   if (code.startsWith('// In the docs array')) return 'TypeScript';

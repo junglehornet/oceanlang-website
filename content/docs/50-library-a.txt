@@ -21,7 +21,7 @@ func main() {
 }
 ```
 @after
-Floats print with two decimal places by default. Use `io.FormatFloat(x)` for the full precision needed to read the value back exactly. Structs print as `{x: 1, y: 2}`, arrays as `[1 2 3]`, and enums as `Shape.Circle(1.50)`. Byte arrays (`i8[]`) print as numbers; cast them to `string` to print text. Maps cannot be printed directly yet.
+Floats print with two decimal places by default. Use `io.FormatFloat(x)` for the full precision needed to read the value back exactly. Structs print as `{x: 1, y: 2}`, arrays as `[1 2 3]`, and enums as `Shape.Circle(1.50)`. Byte arrays (`[]i8`) print as numbers; cast them to `string` to print text. Maps cannot be printed directly yet.
 
 --- formatting | Formatting with placeholders
 `io.Printf` and `io.Printfln` take a format string in which each `{}` is replaced by the next argument, printed as `io.Print` would print it. `Printfln` adds a newline. To include a literal `{` before a `}`, escape it with a backslash, written `"\\{}"` in an Ocean string. There are no width or precision specifiers.
@@ -154,7 +154,7 @@ For line- or word-based reading, wrap a file in an `io.Scanner`. For raw bytes, 
 Method | Returns
 `Read()` | `Result<int>`: the next byte as 0–255, or -1 at end of file
 `Readn(n)` | `Result<os.ReadResult>`: exactly `n` bytes in `Bytes` (zero-padded), with `End` set if the file ended early
-`Readchunk(n)` | `Result<i8[]>`: up to `n` bytes; empty at end of file
+`Readchunk(n)` | `Result<[]i8>`: up to `n` bytes; empty at end of file
 `Readend()` | `Result<array<i8>>`: everything from the current position to the end
 `Readall()` | `Result<array<i8>>`: the whole file, without moving the current position
 `Size()` | `Result<int>`: the file's size in bytes
@@ -227,7 +227,7 @@ import "os/exec";
 
 func main() {
     command := exec.Command("/bin/sh", "-c", "echo \"$GREETING from $PWD\"");
-    command.Env = string[]{"GREETING=hello"};
+    command.Env = []string{"GREETING=hello"};
     command.Dir = "/tmp";
     io.Print(command.Output().unwrap());
 }
@@ -245,7 +245,7 @@ title: encoding/json
 desc: Encode Ocean values as JSON text and decode JSON into dynamic values.
 
 --- marshal | Encoding
-`json.Marshal(value)` returns the JSON text for a value as a `Result<string>`. It handles `null`, booleans, strings, integers, finite floats, structs, `map[string]any`, `mixed any[]`, and dynamic arrays of strings, integers, floats, and booleans. Struct fields are written with their exact names, including private ones; object keys from maps come out sorted. Types it can't encode produce an error.
+`json.Marshal(value)` returns the JSON text for a value as a `Result<string>`. It handles `null`, booleans, strings, integers, finite floats, structs, `map[string]any`, `mixed []any`, and dynamic arrays of strings, integers, floats, and booleans. Struct fields are written with their exact names, including private ones; object keys from maps come out sorted. Types it can't encode produce an error.
 ```code
 // check: run
 // expect: {"Name":"Ada","Age":36,"Tags":["math"]}
@@ -257,16 +257,16 @@ import "encoding/json";
 struct Person {
     Name string;
     Age int;
-    Tags string[];
+    Tags []string;
 }
 
 func main() {
-    io.Println(json.Marshal(Person{"Ada", 36, string[]{"math"}}).unwrap());
+    io.Println(json.Marshal(Person{"Ada", 36, []string{"math"}}).unwrap());
 }
 ```
 
 --- unmarshal | Decoding
-`json.Unmarshal(text)` parses a document and returns a `Result<any>`. Objects become `map[string]any`, arrays become `mixed any[]`, strings, booleans, and `null` become their Ocean equivalents, and numbers become `json.Number`. Use type assertions or type switches to navigate the result.
+`json.Unmarshal(text)` parses a document and returns a `Result<any>`. Objects become `map[string]any`, arrays become `mixed []any`, strings, booleans, and `null` become their Ocean equivalents, and numbers become `json.Number`. Use type assertions or type switches to navigate the result.
 ```code
 // check: run
 // expect: Lin 2 2.50
@@ -279,7 +279,7 @@ func main() {
     value := json.Unmarshal("{\"name\": \"Lin\", \"scores\": [1, 2.5]}").unwrap();
     object := value.(map[string]any);
     name := object["name"].(string);
-    scores := object["scores"].(mixed any[]);
+    scores := object["scores"].(mixed []any);
     second := scores[1].(json.Number).Float64().unwrap();
     io.Println(name, " ", len(scores), " ", second);
 }

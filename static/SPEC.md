@@ -1671,16 +1671,24 @@ ExternParam = Type [ identifier | '_' ] .
 - They must be called as `extern.name(args)`; a bare `name(...)` is an error.
 - Types must match the C ABI by hand (C `int` is `i32`; Ocean `int` is 64-bit).
   Use `buffer<i8>` for `char *`, `*void` for `void *`.
-- Parameterized integers of at most 64 bits pass as C integers of their storage
-  width. Passing an integer wider than 64 bits to an extern is an error
-  ("integers wider than 64 bits require an explicit narrowing cast for C
-  interoperability"). Narrow it with `->`, or pass a pointer to its storage.
+- An extern parameter or result may be `varint(n)` or `varuint(n)` (directly or
+  through a defined type or alias) only when `n` is 8, 16, 32, or 64; these are
+  passed exactly like `i8`…`int` and `u8`…`uint`. Any other width is an error
+  ("C has no 6-bit integer type: …"), because C has no integer of that width.
+  Declare a C-sized parameter and cast the value with `->`.
+- Passing an integer wider than 64 bits to an extern, including as a variadic
+  argument, is an error ("integers wider than 64 bits require an explicit
+  narrowing cast for C interoperability"). Narrow it with `->`, or pass a pointer
+  to its storage.
 - Structs cannot be passed or returned by value.
 - `string.data` / `array.data` may be passed as a buffer argument. For strings,
   the callee receives an isolated temporary copy, valid only during the call.
 - **C variadics** (`, ...`): require at least one fixed parameter. Extra
-  arguments must be scalars or pointers; `bool` and integers narrower than 32
-  bits are promoted to `i32`, floats to `double`. A final array spread
+  arguments must be scalars or pointers and follow C's default argument
+  promotions: `bool` and integers narrower than 32 bits become `i32`, with
+  `varint(n)` sign-extended and `varuint(n)` zero-extended; other parameterized
+  widths up to 64 bits widen to the next of 32 or 64 bits (so `varint(40)` is
+  passed as a 64-bit integer, read with `%lld`); and `f32` becomes `double`. A final array spread
   (including `...any` packs) passes its elements.
 
 ### 11.7 Entry point

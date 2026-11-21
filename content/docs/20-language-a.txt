@@ -195,7 +195,7 @@ func main() {
 @after
 Widths follow the same widening rules as the other integers. A value converts automatically to a type that can hold every value it might have, and anything narrower needs a cast, which keeps only the low bits. Storage is rounded up to whole bytes, which is why `varint(12)` takes 2 bytes. Integer literals keep their exact value even past 64 bits, so `big` above holds the largest 128-bit unsigned number.
 
-`io.Println` can't print these types directly yet. Cast to a standard type first, as in `small->int`. Values wider than 64 bits can't be passed to C functions either: cast them down to a size C understands.
+`io.Println` can't print these types directly yet. Cast to a standard type first, as in `small->int`. When calling C, an `extern` declaration can only use widths that C has: 8, 16, 32, or 64 bits. Values wider than 64 bits can't be passed to C at all, so cast them down to a size C understands. When you pass one of these integers to a variadic C function such as `printf`, Ocean widens it the way C expects: a `varint(6)` arrives as an `int`, and a `varint(40)` as a 64-bit `long long`.
 
 --- floats | Mixing integers and floats
 Integer literals can be used wherever a float is expected, so `x: float = 2`, `measure(3)`, and `if (depth == 0)` all work with float values. In arithmetic and comparisons, an integer variable can also be combined with a float: `1.5 * n` produces a float. Arithmetic between two integers stays an integer, and integer division truncates toward zero, so `7 / 2` is `3` and `-7 / 2` is `-3`.

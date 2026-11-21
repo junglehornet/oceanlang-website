@@ -236,8 +236,23 @@ It provides diagnostics as you type (including for unsaved files), hover with re
 --- limits | What the editor checks
 To stay fast, the language server stops after type checking: it does not generate code or link. Some problems, such as an unsupported feature in code generation or a missing C library, therefore only show up with `ocean check` or a build. Editor analysis also recovers from errors so that the rest of a file stays usable, while command-line builds are strict.
 
---- helix | Helix
-The compiler repository includes a syntax-highlighting grammar and configuration for the Helix editor in `editors/helix`. Copy the grammar and queries as described in its README, then add the language and server to your `languages.toml`.
+--- helix | Helix: get the files
+The compiler repository ships everything Helix needs in `editors/helix`: a Tree-sitter grammar for highlighting, the highlight and indentation queries, and two color themes, `ocean-dark` and `ocean-light`, that match the code on this site. Clone the repository (or update your existing checkout), then copy the three parts into your Helix configuration directory. On Linux and macOS that is `~/.config/helix`; on Windows it is `%AppData%\helix`.
+```code Terminal
+git clone https://github.com/ocean-foundation/ocean-c.git
+cd ocean-c/editors/helix
+
+mkdir -p ~/.config/helix/grammars/ocean ~/.config/helix/runtime/grammars \
+  ~/.config/helix/runtime/queries/ocean ~/.config/helix/themes
+cp -r grammar/. ~/.config/helix/grammars/ocean/
+cp queries/ocean/*.scm ~/.config/helix/runtime/queries/ocean/
+cp themes/*.toml ~/.config/helix/themes/
+```
+@after
+The grammar source goes in `grammars/ocean`, and Helix writes the compiled grammar to `runtime/grammars`, which it does not create by itself; the queries in `runtime/queries/ocean`, which tell Helix how to color what the grammar finds; and the themes in `themes`.
+
+--- helix-languages | Helix: register the language
+Add the Ocean language, its language server, and its grammar to `languages.toml` in the same directory. Replace `/home/you` with the absolute path of your home directory: the grammar `source` must be an absolute path.
 ```code languages.toml
 [language-server.ocean-lsp]
 command = "ocean"
@@ -246,6 +261,7 @@ args = ["check", "--lsp"]
 [[language]]
 name = "ocean"
 scope = "source.ocean"
+injection-regex = "ocean"
 file-types = ["oc"]
 roots = ["ocean.mod", ".git"]
 comment-token = "//"
@@ -253,11 +269,35 @@ block-comment-tokens = { start = "/*", end = "*/" }
 language-servers = ["ocean-lsp"]
 grammar = "ocean"
 indent = { tab-width = 4, unit = "    " }
+
+[[grammar]]
+name = "ocean"
+source = { path = "/home/you/.config/helix/grammars/ocean" }
 ```
 @after
-Run `helix --grammar build` and then `helix --health ocean` to confirm the setup. Restart the server with `:lsp-restart` after updating the compiler.
+If your editor runs a compiler straight from a source checkout rather than an installed one, also add `environment = { OCEAN_SRC = "/path/to/ocean-src" }` to the `ocean-lsp` section, as described below.
+
+--- helix-build | Helix: build the grammar
+Ask Helix to compile the grammar, then check that everything is found. The command is `helix` or `hx`, depending on how Helix was installed. Building needs a C compiler, but not the Tree-sitter command-line tool.
+```code Terminal
+helix --grammar build
+helix --health ocean
+```
+@after
+`helix --grammar build` builds every grammar in your configuration. To build only Ocean's, add `use-grammars = { only = ["ocean"] }` at the top of `languages.toml` while you run it, and remove the line afterwards if you use other languages. The health check should report the language server, the Tree-sitter parser, and the highlight and indent queries as found. Ocean doesn't ship textobject queries, so that line shows as missing.
+
+--- helix-theme | Helix: choose a theme
+Select one of the Ocean themes in `config.toml`. `ocean-dark` uses Darcula-style colors and `ocean-light` uses IntelliJ-style ones. Both color the editor's interface to match this site as well as the code. You can also try them without editing the file by typing `:theme ocean-dark` in Helix.
+```code config.toml
+theme = "ocean-dark"
+```
+@after
+The themes work for every language, not only Ocean. Because Ocean's grammar recognizes tokens rather than full syntax, Ocean highlighting is close to, but not quite as detailed as, the code on this site. Its queries recognize keywords, types, functions and method calls, fields, enum variants, and standard-library package names from their surroundings.
+
+--- helix-update | Helix: updating
+After pulling a new version of `ocean-c`, copy the files again and rerun `helix --grammar build`, then restart Helix. Restart only the language server, after updating the compiler, with `:lsp-restart`. For manual completion, bind a key to `completion` in `config.toml`; for example `C-space = "completion"` under `[keys.insert]`.
 @links
-Helix setup instructions -> https://github.com/ocean-foundation/ocean-c/tree/main/editors/helix
+Helix files in the compiler repository -> https://github.com/ocean-foundation/ocean-c/tree/main/editors/helix
 
 --- checkout | Using a compiler from a source checkout
 A compiler run straight from its build directory has no installed library next to it. If your editor starts such a compiler, set `OCEAN_SRC` in the language server's environment to your standard-library checkout, or standard-library imports won't resolve.

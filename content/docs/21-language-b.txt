@@ -521,7 +521,7 @@ func main() {
 }
 ```
 @after
-Adjacent bitfields share storage. They fill it in order, starting from the lowest bits, until the next one would take the group past 64 bits. An ordinary field between bitfields starts a new group. Here all five fields fit in 20 bits, so the whole struct takes 4 bytes. Writing a value that doesn't fit keeps its low bits and leaves the neighboring fields alone. Reading a signed field sign-extends it. An assignment or `++` used as a value gives back what was actually stored, so `++p.alpha` on a field holding 7 is -8. Enum variant payloads can't contain bitfields.
+Adjacent bitfields share storage. They fill it in order, starting from the lowest bits, until the next one would take the group past 64 bits. An ordinary field between bitfields starts a new group. Here all five fields fit in 20 bits, so the whole struct takes 4 bytes. Writing a value that doesn't fit keeps its low bits and leaves the neighboring fields alone. Reading a signed field sign-extends it. An assignment or a prefix `++`/`--` used as a value gives back what was actually stored, so `++p.alpha` on a field holding 7 is -8. Postfix `p.alpha++` gives back the old value, 7, and still stores -8. Enum variant payloads can't contain bitfields.
 
 A bitfield has no address of its own, so `&p.red` is an error, and so is calling a method with a pointer receiver on one. If you write the type as `varint(n)` and then give the field fewer than `n` bits, as in `num varint(6) : 5;`, the compiler warns that the two sizes disagree. Defined types are exempt from the warning, so `type Nibble varint(4);` followed by `low Nibble : 3;` compiles quietly.
 

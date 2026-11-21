@@ -1092,8 +1092,9 @@ A constraint is a union of terms `T1 | T2 | ~T3`.
 - Type arguments do not undergo numeric conversion: `Box<i8>` does not satisfy `Box<int>`.
 - A type list may be used directly as a parameter or result type
   (`func f(x, y int | float) int | float`). Such a value is boxed; operations
-  dispatch on its runtime type. The static type of an operation is the §9.2
-  result when that result is identical for every admitted pair of members (so
+  dispatch on its runtime type. Comparisons have type `bool`. The static type
+  of any other operation is the §9.2 result when that result is identical for
+  every admitted pair of members (so
   for `a varuint(4) | varuint(8)` and `b varuint(16)`, `a + b` is `uint`);
   when the pairs disagree, the result is the type list itself and is boxed
   (`varuint(4) | varint(8)` plus `varuint(16)` has type
@@ -1201,7 +1202,11 @@ There are no named constants; `sizeof` and `zero` are compile-time constants.
 
 - If either operand is floating: the result is the floating type (if both are
   floating and differ, `float`). Integer operands are converted.
-- Both integers with the same width and signedness: that type.
+- Both integers with the same width and signedness: the left operand's type.
+  Operands of different identities share a width and signedness only between a
+  parameterized integer and the matching fixed type, so `varint(32) + i32` is
+  `varint(32)`, `i32 + varint(32)` is `i32`, and `varint(64) + int` is
+  `varint(64)`.
 - Same signedness, different widths: the wider width, but at least 64 bits.
   Operands up to 64 bits give `int` (signed) or `uint` (unsigned), so
   `varint(4) + varint(8)` is `int`. A wider operand gives `varint(w)` or

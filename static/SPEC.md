@@ -778,8 +778,11 @@ struct Flags { low uint : 4; high uint : 4; ready bool : 1; }
   must not exceed the bit width of `T` (`bitfield size exceeds its type width`).
   This 64-bit limit applies even when `T` is a wider parameterized integer.
 - `T` must be an integer type, a parameterized integer, a defined type or alias
-  of one, or `bool` with size 1. Other types are rejected
-  (`bitfield requires an integer or bool type`).
+  of one, or `bool` with size 1. Other types, including `any`, are rejected
+  (`bitfield requires an integer or bool type`). A struct type parameter may be
+  a bitfield type; each instantiation must satisfy these rules.
+- Enum record payloads cannot declare bitfields
+  (`Bitfields are not supported in enum payloads`).
 - Grouped names share the size: in `a, b u8 : 3;` each field has 3 bits.
 - **Packing.** Consecutive bitfields are packed in declaration order, starting at
   the least significant bit, into one storage unit, until the next bitfield would
@@ -792,6 +795,9 @@ struct Flags { low uint : 4; high uint : 4; ready bool : 1; }
 - **Reads** produce a value of type `T`. Signed fields sign-extend from the
   field width, so storing 5 in an `int : 3` field reads back −3.
 - **Writes** truncate to the field width and leave neighboring fields unchanged.
+  The value of an assignment, compound assignment, or prefix `++`/`--` on a
+  bitfield is the stored (truncated, re-extended) value: for `x int : 3` holding
+  3, `++s.x` is −4.
 - A bitfield is not addressable: `&s.field` is an error, and so is calling a
   pointer-receiver method on a bitfield, which would take its address implicitly.
 - **Warning.** When `T` is written directly as `varint(n)` or `varuint(n)` and
@@ -1055,7 +1061,11 @@ of a defined type. For example, given `type Count int;`, assigning
 Integer **literal** values (an integer literal, optionally negated) are
 additionally assignable to any integer type whose range contains the value, and
 to any floating type (they become float literals). Literals out of range are an
-error ("integer literal is out of range"). An untyped literal does not convert
+error ("integer literal is out of range"). An integer literal of any width
+becomes a float rounded once, to nearest-even, directly to the destination width.
+A literal too large for that width becomes infinity with a warning ("integer
+literal is out of range for f32 and becomes infinity"); this also applies to an
+explicit `->f32` cast. An explicit `->f64` (or `->float`) cast never warns. An untyped literal does not convert
 to a defined type.
 
 An `any` value is **not** implicitly assignable to an array, dynamic array, or
@@ -1082,7 +1092,12 @@ A constraint is a union of terms `T1 | T2 | ~T3`.
 - Type arguments do not undergo numeric conversion: `Box<i8>` does not satisfy `Box<int>`.
 - A type list may be used directly as a parameter or result type
   (`func f(x, y int | float) int | float`). Such a value is boxed; operations
-  dispatch on its runtime type. A narrower numeric argument is widened to the
+  dispatch on its runtime type. The static type of an operation is the §9.2
+  result when that result is identical for every admitted pair of members (so
+  for `a varuint(4) | varuint(8)` and `b varuint(16)`, `a + b` is `uint`);
+  when the pairs disagree, the result is the type list itself and is boxed
+  (`varuint(4) | varint(8)` plus `varuint(16)` has type
+  `varuint(4)|varint(8)`). A narrower numeric argument is widened to the
   first listed term it fits (e.g. an `i8` literal/value to `int`; `f32` to `float`).
 - A set fits another set only if every term of the first is covered by the second.
 

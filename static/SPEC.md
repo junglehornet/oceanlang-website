@@ -1202,12 +1202,11 @@ There are no named constants; `sizeof` and `zero` are compile-time constants.
 
 - If either operand is floating: the result is the floating type (if both are
   floating and differ, `float`). Integer operands are converted.
-- Both integers with the same width and signedness: the left operand's type.
-  Operands of different identities share a width and signedness only between a
-  parameterized integer and the matching fixed type, so `varint(32) + i32` is
-  `varint(32)`, `i32 + varint(32)` is `i32`, and `varint(64) + int` is
-  `varint(64)`.
-- Same signedness, different widths: the wider width, but at least 64 bits.
+- Both integers of the identical type: that type (`varint(4) + varint(4)` is
+  `varint(4)`).
+- Otherwise, with the same signedness: the wider width, but at least 64 bits.
+  This includes distinct types of one width, so `varint(32) + i32` and
+  `i32 + varint(32)` are both `int`, and `varuint(8) + u8` is `uint`.
   Operands up to 64 bits give `int` (signed) or `uint` (unsigned), so
   `varint(4) + varint(8)` is `int`. A wider operand gives `varint(w)` or
   `varuint(w)` for the wider width `w`.
@@ -1216,7 +1215,9 @@ There are no named constants; `sizeof` and `zero` are compile-time constants.
   unsigned integers require an explicit -> cast").
 - Mixed signedness with an operand wider than 64 bits: `varint(w)`, where `w` is
   the larger of the signed width and the unsigned width plus one, so
-  `varint(100) + varuint(100)` is `varint(101)`. It is an error if `w` would
+  `varint(100) + varuint(100)` is `varint(101)`, `varint(100) + varuint(128)`
+  is `varint(129)`, and `varint(200) + varuint(100)` is `varint(200)`. No cast
+  is needed. It is an error if `w` would
   exceed 8,388,608.
 - These rules also apply to `==`/`!=` and ordering comparisons.
 - Defined numeric types: both operands must be the identical defined type; the
@@ -1693,8 +1694,10 @@ ExternParam = Type [ identifier | '_' ] .
   Use `buffer<i8>` for `char *`, `*void` for `void *`.
 - An extern parameter or result may be `varint(n)` or `varuint(n)` (directly or
   through a defined type or alias) only when `n` is 8, 16, 32, or 64; these are
-  passed exactly like `i8`…`int` and `u8`…`uint`. Any other width is an error
-  ("C has no 6-bit integer type: …"), because C has no integer of that width.
+  passed exactly like `i8`…`int` and `u8`…`uint`, including in calls whose
+  arguments are expanded at run time. Any other width, including widths above
+  64 bits, is an error in the declaration itself ("C has no 6-bit integer
+  type: …"), because C has no integer of that width.
   Declare a C-sized parameter and cast the value with `->`.
 - Passing an integer wider than 64 bits to an extern, including as a variadic
   argument, is an error ("integers wider than 64 bits require an explicit

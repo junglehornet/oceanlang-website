@@ -1096,9 +1096,12 @@ A constraint is a union of terms `T1 | T2 | ~T3`.
   of any other operation is the §9.2 result when that result is identical for
   every admitted pair of members (so
   for `a varuint(4) | varuint(8)` and `b varuint(16)`, `a + b` is `uint`);
-  when the pairs disagree, the result is the type list itself and is boxed
-  (`varuint(4) | varint(8)` plus `varuint(16)` has type
-  `varuint(4)|varint(8)`). A narrower numeric argument is widened to the
+  when the pairs disagree, the result is a boxed type list of the distinct
+  pair results, so every runtime value is one of its terms
+  (`varuint(4) | varint(8)` plus `varuint(16)` has type `uint|int`: a
+  `varuint(4)` operand gives a `uint`, a `varint(8)` operand an `int`). A pair
+  result that cannot be written as a type-list term (for example a defined
+  type or an array) makes the result `any`. A narrower numeric argument is widened to the
   first listed term it fits (e.g. an `i8` literal/value to `int`; `f32` to `float`).
 - A set fits another set only if every term of the first is covered by the second.
 

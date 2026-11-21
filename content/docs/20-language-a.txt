@@ -50,10 +50,10 @@ Names (identifiers) may contain letters, digits, and underscores, and may not st
 
 Capitalization matters. A top-level name that starts with an uppercase letter is exported, which means other packages can use it. A name that starts with any other character is private to its own package. See Packages and imports for the details.
 
-These words are reserved and cannot be used as names: `any`, `as`, `asm`, `break`, `case`, `continue`, `default`, `defer`, `else`, `enum`, `extern`, `fallthrough`, `for`, `func`, `goto`, `if`, `import`, `interface`, `match`, `mixed`, `null`, `package`, `panic`, `range`, `return`, `struct`, `switch`, and `type`.
+These words are reserved and cannot be used as names: `any`, `as`, `asm`, `break`, `case`, `continue`, `default`, `defer`, `else`, `enum`, `extern`, `fallthrough`, `for`, `func`, `goto`, `if`, `import`, `interface`, `match`, `mixed`, `null`, `package`, `panic`, `range`, `return`, `struct`, `switch`, `type`, `varint`, and `varuint`.
 
 --- literals | Literals
-Integer literals can be written in decimal (`255`), hexadecimal (`0xff`), binary (`0b1010`), or octal (`0o17`). They can be as large as 18446744073709551615, the largest unsigned 64-bit value. Floating-point literals contain a decimal point or an exponent: `3.5`, `0.25`, `1.5e3`, `6e-2`.
+Integer literals can be written in decimal (`255`), hexadecimal (`0xff`), binary (`0b1010`), or octal (`0o17`). Values up to 18446744073709551615, the largest unsigned 64-bit value, fit the standard integer types. Larger literals, up to 8,388,608 bits, get a wider `varuint(n)` or `varint(n)` type; see Integers of any width below. Floating-point literals contain a decimal point or an exponent: `3.5`, `0.25`, `1.5e3`, `6e-2`.
 
 `true` and `false` are the two boolean values. `null` is the "no value" marker for pointers, interfaces, and optionals.
 
@@ -127,7 +127,7 @@ desc: Declare variables, choose numeric types, and convert between them with exp
 --- declaring | Declaring variables
 Write `name := value` to declare a variable whose type is inferred from its initial value, or `name: Type = value` to state the type yourself. If you leave out the initializer, as in `name: Type;`, the variable starts with its type's default value: zero for numbers, `false` for booleans, and empty for strings and collections.
 
-Every variable can be reassigned with `=`. The compound assignments `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=` update a variable in place, and `++` and `--` add or subtract one. Assignments must keep the variable's type: once `count` is an `int`, you cannot store a string in it.
+Every variable can be reassigned with `=`. The compound assignments `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=` update a variable in place, and `++` and `--` add or subtract one. `x += y` works exactly when `x = x + y` would: the result of `x + y` must fit `x`'s type. With `x: i32` and `y: i16`, `x += y` is fine because `x + y` is an `i32`, but with `x: u8` and `y: u16` it is an error, because `x + y` is a `u16`. Assignments must keep the variable's type: once `count` is an `int`, you cannot store a string in it.
 ```code
 // check: run
 // expect: 16 42.50 false
@@ -155,6 +155,7 @@ Type | Description
 `i32`, `i16`, `i8` | Signed 32-, 16-, and 8-bit integers
 `uint`, `u64` | Unsigned 64-bit integer
 `u32`, `u16`, `u8` | Unsigned 32-, 16-, and 8-bit integers
+`varint(n)`, `varuint(n)` | Signed or unsigned integer of exactly `n` bits, from 1 to 8,388,608
 `float`, `f64` | 64-bit (double-precision) floating point
 `f32` | 32-bit (single-precision) floating point
 `bool` | `true` or `false`
@@ -165,9 +166,38 @@ Ocean converts one integer type to another automatically only when no value can 
 
 Integer literals are more flexible: a literal can initialize any integer type it fits in, so `small: i8 = 42` is fine. Variables and expressions are judged by their type, not by their current value.
 
-When two integers of different widths meet in arithmetic, the result is 64-bit; if one side is a literal that fits the other side's type, the other side's type is used instead. Mixing signed and unsigned values needs a cast when no signed 64-bit type can hold both ranges.
+When two integers of different widths meet in arithmetic, the result has the wider operand's type: `i32 + i16` is an `i32`, and `u16 + u8` is a `u16`. Two types of the same width, such as `varint(32)` and `i32`, give the standard type `i32`. The arithmetic happens at the result's width and wraps there, so a `u16` holding 65535 plus a `u8` holding 1 is 0. If one side is a literal that fits the other side's type, the other side's type is used instead.
+
+Mixing signed and unsigned values gives a signed result as wide as the wider operand: `i64 + u64` is an `i64`, and `i8 + u32` is an `i32`. The unsigned value's bits are read as signed, so a `u64` too large for `i64` turns negative. When both operands are `varint(n)` or `varuint(n)` types, the result instead grows by a bit if needed to hold both ranges: `varint(64) + varuint(64)` is a `varint(65)`, while `varint(64) + varuint(63)` stays a `varint(64)`.
 @note
 Automatic widening applies to individual numbers only. A `[]i8` array is not a `[]i32`, and a `*i8` pointer is not a `*i32`; the storage behind them has a different layout.
+
+--- exact-widths | Integers of any width
+When none of the standard sizes fits, `varint(n)` gives you a signed integer of exactly `n` bits and `varuint(n)` an unsigned one. The width is a number written in the parentheses, anywhere from 1 up to 8,388,608 bits. A `varint(4)` holds -8 to 7, and a `varuint(4)` holds 0 to 15. Arithmetic wraps at that width, just as it does for the built-in sizes. `varint` and `varuint` are keywords, so you can't use either word as a name.
+
+If you use the same width in several places, give it a name with a defined type, such as `type Nibble varuint(4);`. As with any defined type, convert values in and out with casts: `15->Nibble` and `n->int`.
+```code
+// check: run
+// expect: -8 0 2 true
+package main;
+
+import "io";
+
+type Nibble varuint(4);
+
+func main() {
+    small: varint(4) = 7;
+    small++;                    // past the top of the range: wraps to -8
+    n := 15->Nibble;
+    n++;                        // wraps to 0
+    big: varuint(128) = 340282366920938463463374607431768211455;
+    io.Println(small->int, " ", n->int, " ", sizeof(varint(12)), " ", big == 340282366920938463463374607431768211455);
+}
+```
+@after
+Widths follow the same widening rules as the other integers. A value converts automatically to a type that can hold every value it might have, and anything narrower needs a cast, which keeps only the low bits. Storage is rounded up to whole bytes, which is why `varint(12)` takes 2 bytes. Integer literals keep their exact value even past 64 bits, so `big` above holds the largest 128-bit unsigned number.
+
+`io.Println` can't print these types directly yet. Cast to a standard type first, as in `small->int`. When calling C, an `extern` declaration can only use widths that C has: 8, 16, 32, or 64 bits. Values wider than 64 bits can't be passed to C at all, so cast them down to a size C understands. When you pass one of these integers to a variadic C function such as `printf`, Ocean widens it the way C expects: a `varint(6)` arrives as an `int`, and a `varint(40)` as a 64-bit `long long`.
 
 --- floats | Mixing integers and floats
 Integer literals can be used wherever a float is expected, so `x: float = 2`, `measure(3)`, and `if (depth == 0)` all work with float values. In arithmetic and comparisons, an integer variable can also be combined with a float: `1.5 * n` produces a float. Arithmetic between two integers stays an integer, and integer division truncates toward zero, so `7 / 2` is `3` and `-7 / 2` is `-3`.

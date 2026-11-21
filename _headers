@@ -1,0 +1,4 @@
+# Merged into the Cloudflare assets _headers by @sveltejs/adapter-cloudflare.
+# Without a charset, browsers decode Markdown as windows-1252 and garble UTF-8.
+/*.md
+  Content-Type: text/markdown; charset=utf-8

@@ -12,7 +12,7 @@ export type Token = { value: string; kind: string };
 
 const keywords = new Set(['package', 'import', 'func', 'return', 'struct', 'enum', 'interface', 'type', 'if', 'else', 'for', 'range', 'switch', 'case', 'default', 'match', 'break', 'continue', 'fallthrough', 'goto', 'panic', 'defer', 'extern', 'asm', 'mixed', 'as', 'forward']);
 const constants = new Set(['true', 'false', 'null']);
-const builtinTypes = new Set(['int', 'i64', 'i32', 'i16', 'i8', 'uint', 'u64', 'u32', 'u16', 'u8', 'float', 'f64', 'f32', 'bool', 'string', 'any', 'void', 'buffer', 'array', 'map']);
+const builtinTypes = new Set(['int', 'i64', 'i32', 'i16', 'i8', 'uint', 'u64', 'u32', 'u16', 'u8', 'float', 'f64', 'f32', 'bool', 'string', 'any', 'void', 'buffer', 'array', 'map', 'varint', 'varuint']);
 const builtinFunctions = new Set(['len', 'make', 'new', 'free', 'delete', 'zero', 'sizeof', 'recover']);
 const builtinEnums = new Set(['Result', 'Optional']);
 const standardPackages = new Set(['io', 'os', 'exec', 'json', 'http', 'term', 'tui', 'math', 'mem', 'time', 'threads', 'sync', 'reflect', 'testing']);

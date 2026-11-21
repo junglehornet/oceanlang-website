@@ -1,30 +1,25 @@
-import { page_data } from '@mdsvex/plugin-page-data';
-import { external_links } from '@mdsvex/plugin-external-links';
-import { toc } from '@mdsvex/plugin-toc';
-import { anchors } from '@mdsvex/plugin-anchors';
-import { figures } from '@mdsvex/plugin-figures';
-import { code_blocks } from '@mdsvex/plugin-code-blocks';
 import tailwindcss from '@tailwindcss/vite';
 import adapter from '@sveltejs/adapter-cloudflare';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
-import { mdsvex } from 'mdsvex';
+import { defineConfig, type Plugin } from 'vite';
+
+// Serve static Markdown (e.g. /SPEC.md) as UTF-8 in dev and preview, matching
+// the production _headers rule; Vite otherwise omits the charset.
+function markdownCharset(): Plugin {
+	const middleware = (req: { url?: string }, res: { setHeader(name: string, value: string): void }, next: () => void) => {
+		if (req.url?.split('?')[0].endsWith('.md')) res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+		next();
+	};
+	return {
+		name: 'markdown-charset',
+		configureServer: (server) => { server.middlewares.use(middleware); },
+		configurePreviewServer: (server) => { server.middlewares.use(middleware); }
+	};
+}
 
 export default defineConfig({
 	plugins: [
-		mdsvex({
-			extensions: ['.svx', '.md'],
-			heading_ids: true,
-			unwrap_images: true,
-			plugins: [
-				code_blocks(),
-				figures(),
-				anchors(),
-				toc(),
-				external_links(),
-				page_data()
-			]
-		}),
+		markdownCharset(),
 		tailwindcss(),
 		sveltekit({
 			adapter: adapter(),

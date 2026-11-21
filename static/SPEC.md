@@ -1287,7 +1287,12 @@ parameters:
 - maps: same set of entries.
 - functions: closure identity.
 - `any`/interface values: compare by dynamic type; different dynamic types are
-  unequal, except that boxed numbers compare numerically (`1 == 1.0`).
+  unequal, except that boxed numbers compare by exact mathematical value
+  (`1 == 1.0`, and an `int` 5 equals a `uint` 5). Unlike concrete operands, boxed
+  integers of mixed signedness are not reinterpreted: a boxed `i8` −1 is not
+  equal to a boxed `u8` 255, although `i8` −1 `==` `u8` 255 is `true` for
+  concrete operands (§9.2). This keeps boxed equality transitive and consistent
+  with `map[any]` key hashing.
 - `null`: compared with pointers, interfaces, `any`, `Optional`.
 - `*void` may be compared with any pointer.
 

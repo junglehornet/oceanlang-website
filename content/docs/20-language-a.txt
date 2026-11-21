@@ -127,7 +127,7 @@ desc: Declare variables, choose numeric types, and convert between them with exp
 --- declaring | Declaring variables
 Write `name := value` to declare a variable whose type is inferred from its initial value, or `name: Type = value` to state the type yourself. If you leave out the initializer, as in `name: Type;`, the variable starts with its type's default value: zero for numbers, `false` for booleans, and empty for strings and collections.
 
-Every variable can be reassigned with `=`. The compound assignments `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=` update a variable in place, and `++` and `--` add or subtract one. Assignments must keep the variable's type: once `count` is an `int`, you cannot store a string in it.
+Every variable can be reassigned with `=`. The compound assignments `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=` update a variable in place, and `++` and `--` add or subtract one. In `x += y`, `y` is converted to `x`'s type first, so it works whenever `y` could be assigned to `x`, and the arithmetic wraps at `x`'s width: with `x: i32` and `y: i16`, `x += y` is fine even though `x = x + y` needs a cast, because `x + y` alone is a 64-bit `int`. Assignments must keep the variable's type: once `count` is an `int`, you cannot store a string in it.
 ```code
 // check: run
 // expect: 16 42.50 false

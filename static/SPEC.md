@@ -1239,8 +1239,17 @@ Semantics:
   defined on floats).
 - `bool` supports only `!`, `&&`, `||`, `==`, `!=`.
 
-**Compound assignment** `x op= y` is `x = x op y` with `x` evaluated once; the
-result must be assignable back to `x`'s type.
+**Compound assignment** `x op= y` evaluates `x` once. For numeric operands it
+requires `y` to be assignable to `x`'s type (§7.2): an integer literal that fits, a narrower
+integer of the same signedness (or a narrower unsigned integer into a wider
+signed one), a distinct type of the same width and signedness, or `f32` into
+`float`. `y` is converted to `x`'s type and the operation is performed in that
+type, wrapping at its width, and the result is stored in `x`. The result type of
+the corresponding binary operation does not apply: `x: i32` with `y: i16`
+accepts `x += y` although `x = x + y` is an error (`i32 + i16` is `int`), and
+likewise `w: varuint(8)` with `u: u8` accepts `w += u`, which wraps 255 + 1 to 0.
+`x: i8` with `y: i32` rejects `x += y`, as does `x: f32` with `y: float`.
+String, array, and pointer compound assignments follow §6.3, §9.3.3, and §6.4.
 
 **Increment/decrement** `x++`, `x--`, `++x`, `--x` require a writable numeric
 or arithmetic-capable pointer operand (§6.4). Postfix forms yield the old

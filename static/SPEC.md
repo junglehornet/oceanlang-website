@@ -1095,11 +1095,12 @@ A constraint is a union of terms `T1 | T2 | ~T3`.
   dispatch on its runtime type. Comparisons have type `bool`. The static type
   of any other operation is the §9.2 result when that result is identical for
   every admitted pair of members (so
-  for `a varuint(4) | varuint(8)` and `b varuint(16)`, `a + b` is `uint`);
+  for `a varuint(4) | varuint(8)` and `b varuint(16)`, `a + b` is `varuint(16)`);
   when the pairs disagree, the result is a boxed type list of the distinct
   pair results, so every runtime value is one of its terms
-  (`varuint(4) | varint(8)` plus `varuint(16)` has type `uint|int`: a
-  `varuint(4)` operand gives a `uint`, a `varint(8)` operand an `int`). A pair
+  (`varuint(4) | varint(8)` plus `varuint(16)` has type `varuint(16)|varint(17)`:
+  a `varuint(4)` operand gives a `varuint(16)`, a `varint(8)` operand a
+  `varint(17)`). A pair
   result that cannot be written as a type-list term (for example a defined
   type or an array) makes the result `any`. A narrower numeric argument is widened to the
   first listed term it fits (e.g. an `i8` literal/value to `int`; `f32` to `float`).
@@ -1207,22 +1208,26 @@ There are no named constants; `sizeof` and `zero` are compile-time constants.
   floating and differ, `float`). Integer operands are converted.
 - Both integers of the identical type: that type (`varint(4) + varint(4)` is
   `varint(4)`).
-- Otherwise, with the same signedness: the wider width, but at least 64 bits.
-  This includes distinct types of one width, so `varint(32) + i32` and
-  `i32 + varint(32)` are both `int`, and `varuint(8) + u8` is `uint`.
-  Operands up to 64 bits give `int` (signed) or `uint` (unsigned), so
-  `varint(4) + varint(8)` is `int`. A wider operand gives `varint(w)` or
-  `varuint(w)` for the wider width `w`.
-- Mixed signedness with both operands at most 64 bits: `int` if the unsigned
-  operand is narrower than 64 bits; otherwise it is an error ("mixed signed and
-  unsigned integers require an explicit -> cast").
-- Mixed signedness with an operand wider than 64 bits: `varint(w)`, where `w` is
-  the larger of the signed width and the unsigned width plus one, so
-  `varint(100) + varuint(100)` is `varint(101)`, `varint(100) + varuint(128)`
-  is `varint(129)`, and `varint(200) + varuint(100)` is `varint(200)`. No cast
-  is needed. It is an error if `w` would
-  exceed 8,388,608.
-- These rules also apply to `==`/`!=` and ordering comparisons.
+- Same signedness, different widths: the wider operand's type (`i32 + i16` is
+  `i32`, `u16 + u8` is `u16`, `varint(4) + varint(8)` is `varint(8)`).
+- Same signedness and width but distinct types (only a parameterized integer
+  and the fixed type of that width): the fixed type (`varint(32) + i32` is
+  `i32`, `varuint(8) + u8` is `u8`).
+- Mixed signedness: a signed result of the wider operand's width
+  (`i64 + u64` is `i64`, `i8 + u32` is `i32`, `i32 + u16` is `i32`). Only when
+  **both** operands are parameterized integers does the result grow to hold
+  both ranges, with `max(signed width, unsigned width + 1)` bits
+  (`varint(64) + varuint(64)` is `varint(65)`, `varint(64) + varuint(63)` is
+  `varint(64)`, `varint(100) + varuint(128)` is `varint(129)`); it is an error
+  if that exceeds 8,388,608 bits. The signed operand keeps its own type when it
+  already has the result width; otherwise the result is the fixed type of that
+  width when it is 8, 16, 32, or 64 bits, and `varint(w)` otherwise
+  (`i8 + varuint(12)` is `varint(12)`, `varint(4) + varuint(7)` is `i8`).
+- Results wrap at their width: `u16` 65535 + `u8` 1 is 0, and an `i64 + u64`
+  result reinterprets the unsigned operand's bits as signed.
+- These rules also apply to `==`/`!=` and ordering comparisons, which compare
+  in the result type: an `i64` holding −1 equals a `u64` holding
+  18446744073709551615, and is not less than it.
 - Defined numeric types: both operands must be the identical defined type; the
   result has that type.
 
@@ -1239,16 +1244,13 @@ Semantics:
   defined on floats).
 - `bool` supports only `!`, `&&`, `||`, `==`, `!=`.
 
-**Compound assignment** `x op= y` evaluates `x` once. For numeric operands it
-requires `y` to be assignable to `x`'s type (§7.2): an integer literal that fits, a narrower
-integer of the same signedness (or a narrower unsigned integer into a wider
-signed one), a distinct type of the same width and signedness, or `f32` into
-`float`. `y` is converted to `x`'s type and the operation is performed in that
-type, wrapping at its width, and the result is stored in `x`. The result type of
-the corresponding binary operation does not apply: `x: i32` with `y: i16`
-accepts `x += y` although `x = x + y` is an error (`i32 + i16` is `int`), and
-likewise `w: varuint(8)` with `u: u8` accepts `w += u`, which wraps 255 + 1 to 0.
-`x: i8` with `y: i32` rejects `x += y`, as does `x: f32` with `y: float`.
+**Compound assignment** `x op= y` evaluates `x` once and is valid exactly when
+`x op y` is valid and its result type is assignable to `x`'s type (§7.2); the
+result is stored in `x`. So `x: i32` accepts `x += y` for `y: i16` (`i32 + i16`
+is `i32`), and `x: u16` accepts `x += y` for `y: u8`, but `x: u8` rejects
+`x += y` for `y: u16` (`u8 + u16` is `u16`), as does `x: varint(64)` with
+`y: varuint(64)` (the result is `varint(65)`) and `x: f32` with `y: float`. A
+literal operand takes `x`'s type when it fits, so `x: u8; x += 1` is valid.
 String, array, and pointer compound assignments follow §6.3, §9.3.3, and §6.4.
 
 **Increment/decrement** `x++`, `x--`, `++x`, `--x` require a writable numeric
